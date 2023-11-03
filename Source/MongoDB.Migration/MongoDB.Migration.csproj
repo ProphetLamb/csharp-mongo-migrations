@@ -5,9 +5,9 @@
   </PropertyGroup>
 
   <PropertyGroup Label="Package">
-    <Product>MongoDB Migration</Product>
-    <Description>Project Description</Description>
-    <PackageTags>Tag1;Tag2;Tag3</PackageTags>
+    <Product>MongoDB-Migration</Product>
+    <Description>Implements a database migraitons for the `MongoDB.Driver`.</Description>
+    <PackageTags>MongoDB;Migrations</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
