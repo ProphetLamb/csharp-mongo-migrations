@@ -16,17 +16,17 @@ environment:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   # Set the build number in MinVer.
   MINVERBUILDMETADATA: build.%APPVEYOR_BUILD_NUMBER%
-  # Encryption secrets for key.snk
+  # Encryption secrets for Key.snk
   KEY_SNK_SECRET:
     secure: N9HAUyYjUGVKwsWfc3qWOg/7Rb7U25dSzZOpoE6xAHi8CfjYC21gjyn1+KFE94ajhP3zMJX8e/SDndMVz80JMbySk3Ks41dgbd2cKKGCuGA=
   KEY_SNK_SALT:
     secure: G9A48BIxTbVehMk7i70X9xNXrWWSvmvmHe+D6yYhw2kdwjq0pfI1y84GCOviEPhZiAFwg9UF+LHjKU/M7Rcaeg==
 
 install:
-  # Decrypt key.snk
+  # Decrypt Key.snk
   - ps: iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/appveyor/secure-file/master/install.ps1'))
-  - cmd: appveyor-tools\secure-file -decrypt key.snk.enc -secret %KEY_SNK_SECRET% -salt %KEY_SNK_SALT% -out key.snk
-  - sh: ./appveyor-tools/secure-file -decrypt key.snk.enc -secret $KEY_SNK_SECRET -salt $KEY_SNK_SALT -out key.snk
+  - cmd: appveyor-tools\secure-file -decrypt Key.snk.enc -secret %KEY_SNK_SECRET% -salt %KEY_SNK_SALT% -out Key.snk
+  - sh: ./appveyor-tools/secure-file -decrypt Key.snk.enc -secret $KEY_SNK_SECRET -salt $KEY_SNK_SALT -out Key.snk
 
 build_script:
   # https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script
