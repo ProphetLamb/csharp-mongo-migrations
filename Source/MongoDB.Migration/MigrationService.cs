@@ -24,7 +24,7 @@ public sealed record DatabaseAlias(string Alias, string Name);
 /// <param name="Started">The time at which the migration started.</param>
 /// <param name="Completed">The time at which the migration completed, if sucessful.</param>
 [BsonIgnoreExtraElements]
-public sealed record DatabaseVersion(string Database, long Version, DateTimeOffset Started, DateTimeOffset? Completed = null);
+internal sealed record DatabaseVersion(string Database, long Version, DateTimeOffset Started, DateTimeOffset? Completed = null);
 
 /// <summary>
 /// Fully defined description of a migration, a combination of the <see cref="MigrationAttribute"/> and <see cref="IMigration"/>.
@@ -42,25 +42,19 @@ public sealed record MigrationExecutionDescriptor(string Database, long UpVersio
 /// <param name="databaseMigratables">The list of migrations.</param>
 /// <param name="serviceProvider">The service provider.</param>
 /// <param name="migrationCompletedPublisher">Collects the migration completions.</param>
-/// <param name="logger">The logger.</param>
-internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databaseMigratables, IServiceProvider serviceProvider, IMigrationCompletionReciever migrationCompletedPublisher, ILogger<DatabaseMigrationService>? logger = null)
+/// <param name="_logger">The logger.</param>
+internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databaseMigratables, IServiceProvider serviceProvider, IMigrationCompletionReciever migrationCompletedPublisher, ILoggerFactory? loggerFactory = null)
     : IHostedService, IDisposable
 {
+    private readonly ILogger<DatabaseMigrationService> _logger = loggerFactory.CreateLogger<DatabaseMigrationService>();
     private Task? _executeTask;
     private CancellationTokenSource? _executeCts;
 
-
-    /// <summary>
-    /// Migrates the database to the latest version.
-    /// </summary>
-    /// <param name="settings">The options specifying the available migations.</param>
-    /// <param name="stoppingToken">Cancels the migration.</param>
-    /// <returns>The task.</returns>
     public async Task MigrateToVersionAsync(DatabaseMigrationSettings settings, CancellationToken stoppingToken)
     {
         var databaseAlias = settings.Database.Alias;
 
-        logger?.LogInformation(
+        _logger?.LogInformation(
             "Begining migration of {Database}",
             settings.Database.Alias
         );
@@ -74,11 +68,11 @@ internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databa
                 .Where(migration => migration.Database == databaseAlias)
                 .ToImmutableArray();
 
-            DatabaseMirationProcessor processor = new(settings, logger);
+            DatabaseMirationProcessor processor = new(settings, loggerFactory.CreateLogger<DatabaseMirationProcessor>());
             migratedVersion = await processor.MigrateToVersionAsync(migrations, stoppingToken).ConfigureAwait(false);
         }
 
-        logger?.LogInformation(
+        _logger?.LogInformation(
             "Completed migration {Database}",
             settings.Database.Alias
         );
@@ -192,7 +186,12 @@ internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databa
     }
 }
 
-public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings, ILogger<DatabaseMigrationService>? logger = null)
+/// <summary>
+/// Executes migrations on the specified database.
+/// </summary>
+/// <param name="settings">The settings describing the database.</param>
+/// <param name="logger">The optional logger.</param>
+public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings, ILogger<DatabaseMirationProcessor>? logger = null)
 {
     private static async Task<(long Count, DatabaseVersion? First, DatabaseVersion? Current)> GetMigrationStateAsync(IMongoCollection<DatabaseVersion> collection, string databaseName, CancellationToken cancellationToken)
     {
@@ -213,7 +212,13 @@ public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings
         return (migrationsCount, firstMigration, currentMigration);
     }
 
-    public async Task<long> MigrateToVersionAsync(ImmutableArray<MigrationExecutionDescriptor> migrations, CancellationToken stoppingToken)
+    /// <summary>
+    /// Executes the migration using the specified list of available <paramref name="migrations"/>.
+    /// </summary>
+    /// <param name="migrations">The list of available migrations.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns></returns>
+    public async Task<long> MigrateToVersionAsync(ImmutableArray<MigrationExecutionDescriptor> migrations, CancellationToken cancellationToken = default)
     {
         var databaseName = settings.Database.Name;
         var databaseAlias = settings.Database.Alias;
@@ -232,7 +237,7 @@ public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings
         var database = client.GetDatabase(databaseName);
         var collection = database.GetCollection<DatabaseVersion>(settings.MirgrationStateCollectionName);
 
-        var (migrationsCount, firstMigration, currentMigration) = await GetMigrationStateAsync(collection, databaseAlias, stoppingToken).ConfigureAwait(false);
+        var (migrationsCount, firstMigration, currentMigration) = await GetMigrationStateAsync(collection, databaseAlias, cancellationToken).ConfigureAwait(false);
 
         logger?.LogInformation(
             "Found {MigrationCount} applied migrations for {Database} at version {CurrentVersion} from {LowestVersion} to {HighestVersion}",
@@ -268,10 +273,10 @@ public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings
 
         if (downgrade)
         {
-            return await MigrateDownToVersionAsync(requiredMigrations, stoppingToken).ConfigureAwait(false);
+            return await MigrateDownToVersionAsync(requiredMigrations, cancellationToken).ConfigureAwait(false);
         }
 
-        return await MigrateUpToVersionAsync(requiredMigrations, stoppingToken).ConfigureAwait(false);
+        return await MigrateUpToVersionAsync(requiredMigrations, cancellationToken).ConfigureAwait(false);
 
         async Task<long> MigrateUpToVersionAsync(ImmutableArray<MigrationExecutionDescriptor> requiredMigrations, CancellationToken stoppingToken)
         {
