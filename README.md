@@ -2,17 +2,27 @@
 
 # MongoDB Migration
 
-A database migration system for `MongoDB.Driver` using ASP.NET.
+Simple database migrations for `MongoDB.Driver` using ASP.NET.
 
 ## Quick start
 
-The following steps are required to implement migrations for your solution.
+Implement the database migrations system in your solution using the following steps:
 
-### Inject services
+1.  [Inject service](#inject-service)
+2.  [Update settings](#update-settings)
+3.  [Await migrations](#await-migrations)
+4.  [Implement migrations](#implement-migrations)
+
+Further reading:
+
+-   [Fixing database versions](#fixing-database-versions)
+-   [Migrations without ASP.NET](#migrations-without-aspnet)
+
+### Inject service
 
 Inject `AddMigration` into your services.
 
--   If migraitons are not in the `Assembly.GetEntryAssembly`, then manually specify the assemblies in the parameters of `AddMigrations`.
+-   If migrations are not in the `Assembly.GetEntryAssembly`, then manually specify the assemblies in the parameters of `AddMigrations`.
 
 ```csharp
 services
@@ -24,10 +34,10 @@ services
 
 Implement `IDatabaseMigratable` for your database settings.
 
--   Options must be configured before services are injected.
--   A `Database.Alias` must be unqiue: The name used to identify the database during runtime.
--   A `Database.Name` must be unqiue: The name of the actual MongoDB database.
--   The value `DatabaseMigrationSettings.Database.Alias` must be a unqiue constant.
+-   Options must be configured before injecting services.
+-   A `Database.Alias` must be unique: The name used to identify the database during runtime.
+-   A `Database.Name` must be unique: The name of the actual MongoDB database.
+-   Assign a unique constant value to `DatabaseMigrationSettings.Database.Alias`.
 
 ```csharp
 public sealed record MyDatabaseSettings : IOptions<MyDatabaseSettings>, IDatabaseMigratable
@@ -75,7 +85,7 @@ sealed class MyRepository(IOptions<MyDatabaseSettings> databaseSettings, IMigrat
 
 Add `IMigration`s between version 0 and 1 and so on.
 
--   The alias used for the `MigrationAttribute` mut match the name in `IDatabaseMigratable.GetMigrationSettings().Database.Alias`.
+-   The alias used for the `MigrationAttribute` must match the name in `IDatabaseMigratable.GetMigrationSettings().Database.Alias`.
 
 ```csharp
 [Migration("MyDatabase", 0, 1, Description = "Add composite index to MyCollection")]
@@ -91,9 +101,41 @@ public sealed class PoeNinjaAddCompositeIndexMigration(IOptions<MyDatabaseSettin
 }
 ```
 
+## Fixing database versions
+
+A fixed database version ensures that the migration always produces a database of the specified version, even if the initial version was higher than the fixed version.
+
+-   Fixing upgrades the database, if the initial version is lower than the fixed version.
+-   Fixing downgrades the database, if the initial version is higher than the fixed version.
+-   Fixing the database to a version is especially useful for a procedural feature rollout.
+
+Fix a specific version by setting the `long? MigrateToFixedVersion` property in your `IDatabaseMigratable`; if the property is `null` - by default - a migration to the latest version will occur.
+
+```csharp
+public DatabaseMigrationSettings GetMigrationSettings()
+{
+    return new()
+    {
+        ConnectionString = ConnectionString,
+        Database = new("MyDatabase", DatabaseName),
+        MirgrationStateCollectionName = "DATABASE_MIGRATIONS",
+        MigrateToFixedVersion = 42069,
+    };
+}
+```
+
+## Migrations without ASP.NET
+
+MongoDB Migration extensively uses ASP.NET to prepare the environment required for processing of migrations. Without ASP.NET most features are unavailable, but the core - `DatabaseMirationProcessor` - public API; it is accessible to the user.
+
+1.  Describe your database in the `DatabaseMigrationSettings` record.
+2.  Pack all available `IMigration`s into the `MigrationExecutionDescriptor` record.
+3.  Instantiate `DatabaseMirationProcessor` for your database.
+4.  Call `DatabaseMirationProcessor.MigrateToVersionAsync` with the available `MigrationExecutionDescriptor`s.
+
 ## ToDO
 
 -   [x] Allow upgrading the database to the latest version.
--   [ ] Allow upgrading the database to a specific verison.
--   [ ] Allow downgrading the database to a specific verison.
+-   [x] Allow upgrading the database to a specific version.
+-   [x] Allow downgrading the database to a specific version.
 -   [ ] Add test cases.

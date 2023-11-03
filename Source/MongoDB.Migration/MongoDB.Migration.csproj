@@ -7,8 +7,8 @@
   <PropertyGroup Label="Package">
     <Product>MongoDB.Migration</Product>
     <PackageId>csharp-mongodb-migrations</PackageId>
-    <Description>A database migration system for `MongoDB.Driver` using ASP.NET.</Description>
-    <PackageTags>MongoDB;Migrations</PackageTags>
+    <Description>Simple database migrations for `MongoDB.Driver` using ASP.NET.</Description>
+    <PackageTags>MongoDB;Migration;Database-Migrations;ASP.NET</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
