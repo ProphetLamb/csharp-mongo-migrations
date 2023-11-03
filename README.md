@@ -34,15 +34,15 @@ services
 
 ### Update settings
 
-Implement `IDatabaseMigratable` for your database settings.
+Implement `IMongoMigratable` for your database settings.
 
 -   Options must be configured before injecting services.
 -   A `Database.Alias` must be unique: The name used to identify the database during runtime.
 -   A `Database.Name` must be unique: The name of the actual MongoDB database.
--   Assign a unique constant value to `DatabaseMigrationSettings.Database.Alias`.
+-   Assign a unique constant value to `MigrationDescriptor.Database.Alias`.
 
 ```csharp
-public sealed record MyDatabaseSettings : IOptions<MyDatabaseSettings>, IDatabaseMigratable
+public sealed record MyDatabaseSettings : IOptions<MyDatabaseSettings>, IMongoMigratable
 {
     public required string ConnectionString { get; init; }
     public required string DatabaseName { get; init; }
@@ -50,7 +50,7 @@ public sealed record MyDatabaseSettings : IOptions<MyDatabaseSettings>, IDatabas
 
     MyDatabaseSettings IOptions<MyDatabaseSettings>.Value => this;
 
-    public DatabaseMigrationSettings GetMigrationSettings()
+    public MigrationDescriptor GetMigratableDefinition()
     {
         return new()
         {
@@ -64,13 +64,13 @@ public sealed record MyDatabaseSettings : IOptions<MyDatabaseSettings>, IDatabas
 
 ### Await migrations
 
-Wait for migrations to complete using `IMigrationCompletion` before accessing the database at any point.
+Wait for migrations to complete using `IMongoMigrationCompletion` before accessing the database at any point.
 
 -   `WaitAsync` may not ever be called in constructors.
 -   `WaitAsync` is fast when the migration is completed, or the database is not configured.
 
 ```csharp
-sealed class MyRepository(IOptions<MyDatabaseSettings> databaseSettings, IMigrationCompletion migrationCompletion) {
+sealed class MyRepository(IOptions<MyDatabaseSettings> databaseSettings, IMongoMigrationCompletion migrationCompletion) {
     private readonly IMongoCollection<MyModel> _myCollection = new MongoClient(databaseSettings.ConnectionString)
         .GetDatabase(databaseSettings.DatabaseName)
         .GetCollection<MyModel>(databaseSettings.MyCollectionName);
@@ -80,18 +80,17 @@ sealed class MyRepository(IOptions<MyDatabaseSettings> databaseSettings, IMigrat
         // ... do stuff
     }
 }
-
 ```
 
 ### Implement migrations
 
-Add `IMigration`s between version 0 and 1 and so on.
+Add `IMongoMigration`s between version 0 and 1 and so on.
 
--   The alias used for the `MigrationAttribute` must match the name in `IDatabaseMigratable.GetMigrationSettings().Database.Alias`.
+-   The alias used for the `MongoMigrationAttribute` must match the name in `IMongoMigratable.GetMigrationSettings().Database.Alias`.
 
 ```csharp
-[Migration("MyDatabase", 0, 1, Description = "Add composite index to MyCollection")]
-public sealed class PoeNinjaAddCompositeIndexMigration(IOptions<MyDatabaseSettings> optionsAccessor) : IMigration
+[MongoMigration("MyDatabase", 0, 1, Description = "Add composite index to MyCollection")]
+public sealed class PoeNinjaAddCompositeIndexMigration(IOptions<MyDatabaseSettings> optionsAccessor) : IMongoMigration
 {
     public async Task DownAsync(IMongoDatabase database, CancellationToken cancellationToken = default)
     {
@@ -111,10 +110,10 @@ A fixed database version ensures that the migration always produces a database o
 -   Fixing downgrades the database, if the initial version is higher than the fixed version.
 -   Fixing the database to a version is especially useful for a procedural feature rollout.
 
-Fix a specific version by setting the `long? MigrateToFixedVersion` property in your `IDatabaseMigratable`; if the property is `null` - by default - a migration to the latest version will occur.
+Fix a specific version by setting the `long? MigrateToFixedVersion` property in your `IMongoMigratable`; if the property is `null` - by default - a migration to the latest version will occur.
 
 ```csharp
-public DatabaseMigrationSettings GetMigrationSettings()
+public MigrationDescriptor GetMigrationSettings()
 {
     return new()
     {
@@ -130,10 +129,10 @@ public DatabaseMigrationSettings GetMigrationSettings()
 
 MongoDB Migration extensively uses ASP.NET to prepare the environment required for processing of migrations. Without ASP.NET most features are unavailable, but the core - `DatabaseMirationProcessor` - public API; it is accessible to the user.
 
-1.  Describe your database in the `DatabaseMigrationSettings` record.
-2.  Pack all available `IMigration`s into the `MigrationExecutionDescriptor` record.
+1.  Describe your database in the `MigrationDescriptor` record.
+2.  Pack all available `IMongoMigration`s into the `DatabaseMigrationProcessor` record.
 3.  Instantiate `DatabaseMirationProcessor` for your database.
-4.  Call `DatabaseMirationProcessor.MigrateToVersionAsync` with the available `MigrationExecutionDescriptor`s.
+4.  Call `DatabaseMirationProcessor.MigrateToVersionAsync` with the available `DatabaseMigrationProcessor`s.
 
 ## ToDO
 
