@@ -45,6 +45,11 @@ public static class MigrationExtensions
     /// <returns>The service colleciton.</returns>
     public static IServiceCollection AddMigrations(this IServiceCollection services, params Assembly[] assemblies)
     {
+        if (services.Any(desc => desc.ServiceType == typeof(DatabaseMigratableSettings)))
+        {
+            throw new InvalidOperationException("Duplicate AddMigrations call: Migrations are already registered.");
+        }
+
         var mirgationTypes = assemblies
             .SelectMany(a => a.GetTypes())
             .Where(t
@@ -62,39 +67,41 @@ public static class MigrationExtensions
         DatabaseMigratableSettings databaseMigratables = new(
             services
                 .Select(d => d.ServiceType)
-                .Where(type =>
-                {
-                    if (!type.IsGenericType)
-                    {
-                        return false;
-                    }
-
-                    if (type.IsAssignableTo(typeof(IDatabaseMigratable)))
-                    {
-                        return true;
-                    }
-
-                    if (type.GetGenericTypeDefinition() != typeof(IOptions<>))
-                    {
-                        return false;
-                    }
-
-                    var optionsType = type.GetGenericArguments()[0];
-                    return optionsType.IsAssignableTo(typeof(IDatabaseMigratable));
-                })
+                .Where(IsDatabaseMigratableOrOptionThereof)
                 .Distinct()
                 .ToImmutableArray()
         );
 
         return services
+            .AddSingleton(databaseMigratables)
             .AddSingleton<IMigrationCompletionReciever, MigrationCompletionService>()
             .AddSingleton<IMigrationCompletion>(sp => sp
                 .GetServices<IMigrationCompletionReciever>()
                 .SelectTruthy(service => service as MigrationCompletionService)
                 .Last()
             )
-            .AddSingleton(databaseMigratables)
-            .AddSingleton<DatabaseMigrationService>();
+            .AddHostedService<DatabaseMigrationService>();
+
+        static bool IsDatabaseMigratableOrOptionThereof(Type type)
+        {
+            if (!type.IsGenericType)
+            {
+                return false;
+            }
+
+            if (type.IsAssignableTo(typeof(IDatabaseMigratable)))
+            {
+                return true;
+            }
+
+            if (type.GetGenericTypeDefinition() != typeof(IOptions<>))
+            {
+                return false;
+            }
+
+            var optionsType = type.GetGenericArguments()[0];
+            return optionsType.IsAssignableTo(typeof(IDatabaseMigratable));
+        }
     }
 
     /// <summary>
