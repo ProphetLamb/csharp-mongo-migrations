@@ -55,7 +55,7 @@ deploy:
       APPVEYOR_REPO_TAG: true
     artifact: /.*(\.|\.s)nupkg/
     api_key:
-      secure: lD1a9bilWu/PdzXrm/vNU40hBHGWFtsCfebAYswjbkNDjK+Hx4hWpySUL3zmg38W
+      secure: C58JLUC+fPc93ksI9nJw5TI2mtEdv+wy0uAmQ8nMD8VamkD+2bunbZWAI3t6FMTu
   - provider: "GitHub"
     on:
       APPVEYOR_REPO_TAG: true
