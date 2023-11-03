@@ -246,7 +246,7 @@ public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings
             "Determine all required migation"
         );
 
-        var (downgrade, requiredMigrations) = (currentMigration?.Version, settings.MigrateToVersion) switch
+        var (downgrade, requiredMigrations) = (currentMigration?.Version, settings.MigrateToFixedVersion) switch
         {
             (var currentVersion, null) => (
                 false,
