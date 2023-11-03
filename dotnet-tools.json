@@ -4,9 +4,11 @@
   "tools": {
     "cake.tool": {
       "version": "2.2.0",
-      "commands": [
-        "dotnet-cake"
-      ]
+      "commands": ["dotnet-cake"]
+    },
+    "minver-cli": {
+      "version": "4.2.0",
+      "commands": ["minver"]
     }
   }
 }
