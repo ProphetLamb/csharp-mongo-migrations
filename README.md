@@ -2,7 +2,7 @@
 
 # MongoDB Migration
 
-Implements a database migration system for `MongoDB.Driver`.
+A database migration system for `MongoDB.Driver` using ASP.NET.
 
 ## Quick start
 
