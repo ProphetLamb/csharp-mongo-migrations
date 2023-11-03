@@ -34,7 +34,7 @@ public sealed record DatabaseVersion(string Database, long Version, DateTimeOffs
 /// <param name="downVersion">The version to which <see cref="IMigration.DownAsync"/> and from which <see cref="IMigration.UpAsync"/> migrates.</param>
 /// <param name="upVersion">The version to which <see cref="IMigration.UpAsync"/> and from which <see cref="IMigration.DownAsync"/> migrates.</param>
 /// <seealso cref="IMigration"/>
-public sealed class MigrationDefinitionAttribute(string database, long downVersion, long upVersion) : Attribute
+public sealed class MigrationAttribute(string database, long downVersion, long upVersion) : Attribute
 {
     /// <summary>
     /// The optional description fo the migraiton.
@@ -55,9 +55,9 @@ public sealed class MigrationDefinitionAttribute(string database, long downVersi
 }
 
 /// <summary>
-/// Migrates a database between two versions. Requires annotation with <see cref="MigrationDefinitionAttribute"/>.
+/// Migrates a database between two versions. Requires annotation with <see cref="MigrationAttribute"/>.
 /// </summary>
-/// <seealso cref="MigrationDefinitionAttribute"/>
+/// <seealso cref="MigrationAttribute"/>
 public interface IMigration
 {
     /// <summary>
@@ -95,7 +95,7 @@ public interface IDatabaseMigratable
 /// Describes a migratable database.
 /// </summary>
 /// <remarks>
-/// Maps the <see cref="DatabaseAlias.Alias"/> used in <see cref="MigrationDefinitionAttribute"/> to the actual <see cref="DatabaseAlias.Name"/>.
+/// Maps the <see cref="DatabaseAlias.Alias"/> used in <see cref="MigrationAttribute"/> to the actual <see cref="DatabaseAlias.Name"/>.
 /// </remarks>
 public sealed record DatabaseMigrationSettings : IOptions<DatabaseMigrationSettings>
 {
@@ -105,7 +105,7 @@ public sealed record DatabaseMigrationSettings : IOptions<DatabaseMigrationSetti
     public required string MirgrationStateCollectionName { get; init; }
 
     /// <summary>
-    /// The mapping from the <see cref="DatabaseAlias.Alias"/> used in <see cref="MigrationDefinitionAttribute"/> to the actual <see cref="DatabaseAlias.Name"/>.
+    /// The mapping from the <see cref="DatabaseAlias.Alias"/> used in <see cref="MigrationAttribute"/> to the actual <see cref="DatabaseAlias.Name"/>.
     /// </summary>
     public required DatabaseAlias Database { get; init; }
 
@@ -181,7 +181,7 @@ public static class MigrationExtensions
                 => !t.IsAbstract
                 && !t.IsInterface
                 && t.IsAssignableTo(typeof(IMigration))
-                && t.GetCustomAttribute<MigrationDefinitionAttribute>() is { }
+                && t.GetCustomAttribute<MigrationAttribute>() is { }
             );
 
         foreach (var migrationType in mirgationTypes)
@@ -349,7 +349,7 @@ public sealed class DatabaseMigrationService(DatabaseMigratableSettings database
     private static MigrationExecutionDescriptor? ToMigrationOrDefault(IMigration service)
     {
         var serviceType = service.GetType();
-        if (serviceType.GetCustomAttribute<MigrationDefinitionAttribute>() is not { } migrationDefinition)
+        if (serviceType.GetCustomAttribute<MigrationAttribute>() is not { } migrationDefinition)
         {
             return null;
         }

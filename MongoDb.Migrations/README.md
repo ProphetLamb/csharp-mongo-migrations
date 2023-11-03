@@ -63,7 +63,7 @@ sealed class MyRepository(IOptions<MyDatabaseSettings> databaseSettings, IMigrat
 Add `IMigration`s between version 0 and 1 and so on...
 
 ```csharp
-[MigrationDefinition("MyDatabase", 0, 1, Description = "Add composite index to MyCollection")]
+[Migration("MyDatabase", 0, 1, Description = "Add composite index to MyCollection")]
 public sealed class PoeNinjaAddCompositeIndexMigration(IOptions<MyDatabaseSettings> optionsAccessor) : IMigration
 {
     public async Task DownAsync(IMongoDatabase database, CancellationToken cancellationToken = default)
