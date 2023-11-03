@@ -255,14 +255,14 @@ public interface IMigrationCompletionReciever
     /// <summary>
     /// Clears all completions and sets the list of known databases.
     /// </summary>
-    internal void ResetWithDatabases(ImmutableArray<DatabaseMigratableSettings> databaseMigratables);
+    internal void WithKnownDatabaseAliases(ImmutableHashSet<string> databaseMigratablesAliases);
 }
 
 internal sealed class MigrationCompletionService : IMigrationCompletion, IMigrationCompletionReciever
 {
     private readonly SortedList<string, DatabaseMigrationCompleted> _completedMigrations = [];
-    private readonly Dictionary<string, TaskCompletionSource<DatabaseMigrationCompleted>> _migrationCompletions = [];
-    private ImmutableHashSet<string> _databaseMigratablesAliases = default;
+    private readonly Dictionary<string, TaskCompletionSource<DatabaseMigrationCompleted?>> _migrationCompletions = [];
+    private ImmutableHashSet<string>? _databaseMigratablesAliases;
 
     private void AddToCompletion(DatabaseMigrationCompleted migration)
     {
@@ -281,9 +281,9 @@ internal sealed class MigrationCompletionService : IMigrationCompletion, IMigrat
     {
         lock (_completedMigrations)
         {
-            if (!_databaseMigratablesAliases.Contains(databaseAlias))
+            if (_databaseMigratablesAliases is null || _databaseMigratablesAliases.Contains(databaseAlias))
             {
-                return new(null);
+                return default;
             }
             if (_completedMigrations.TryGetValue(databaseAlias, out var migration))
             {
@@ -303,7 +303,7 @@ internal sealed class MigrationCompletionService : IMigrationCompletion, IMigrat
         AddToCompletion(message);
     }
 
-    void IMigrationCompletionReciever.ResetWithDatabases(ImmutableHashSet<string> databaseMigratablesAliases)
+    void IMigrationCompletionReciever.WithKnownDatabaseAliases(ImmutableHashSet<string> databaseMigratablesAliases)
     {
         lock (_completedMigrations)
         {
@@ -485,11 +485,11 @@ public sealed class DatabaseMigrationService(DatabaseMigratableSettings database
 
     private async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        migrationCompletedPublisher.Clear();
         var migrationSettings = GetDatabaseMigratables(databaseMigratables, serviceProvider)
             .Select(m => m.GetMigrationSettings())
             .DistinctBy(s => s.Database.Alias)
             .ToImmutableArray();
+        migrationCompletedPublisher.WithKnownDatabaseAliases(migrationSettings.Select(m => m.Database.Alias).ToImmutableHashSet());
         await Task.WhenAll(
             migrationSettings.Select(s => UpToLatestAsync(s, stoppingToken))
         )
