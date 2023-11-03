@@ -6,23 +6,23 @@ Simple database migrations for [`MongoDB.Driver`](https://github.com/mongodb/mon
 
 ## Quick start
 
-Implement the database migrations system in your solution using the following steps:
+Install the [NuGet package](https://www.nuget.org/packages/csharp-mongodb-migrations/) & Implement the database migrations system in your solution using the following steps:
 
-1.  [Inject service](#inject-service)
+```bash
+dotnet add package csharp-mongodb-migrations
+```
+
+1.  [Inject migrations service](#inject-migrations-service)
 2.  [Update settings](#update-settings)
 3.  [Await migrations](#await-migrations)
 4.  [Implement migrations](#implement-migrations)
 
-Further reading:
+### Inject migrations service
 
--   [Fixing database versions](#fixing-database-versions)
--   [Migrations without ASP.NET](#migrations-without-aspnet)
-
-### Inject service
-
-Inject `AddMigration` into your services.
+Inject `AddMigrations` into your services.
 
 -   If migrations are not in the `Assembly.GetEntryAssembly`, then manually specify the assemblies in the parameters of `AddMigrations`.
+-   Call `AddMigrations` after configuring options.
 
 ```csharp
 services
@@ -64,8 +64,8 @@ public sealed record MyDatabaseSettings : IOptions<MyDatabaseSettings>, IDatabas
 
 Wait for migrations to complete using `IMigrationCompletion` before accessing the database at any point.
 
--   The call is fast when the migration is completed, or the database is not configured.
--   `IMigrationCompletion.WaitAsync` may not ever be called in constructors.
+-   `WaitAsync` may not ever be called in constructors.
+-   `WaitAsync` is fast when the migration is completed, or the database is not configured.
 
 ```csharp
 sealed class MyRepository(IOptions<MyDatabaseSettings> databaseSettings, IMigrationCompletion migrationCompletion) {
