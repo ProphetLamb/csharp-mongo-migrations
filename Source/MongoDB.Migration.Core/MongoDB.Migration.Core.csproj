@@ -5,10 +5,10 @@
   </PropertyGroup>
 
   <PropertyGroup Label="Package">
-    <Product>MongoDB.Migration</Product>
-    <AssemblyName>MongoDB.Migration</AssemblyName>
-    <PackageId>csharp-mongodb-migrations</PackageId>
-    <Description>Simple database migrations for `MongoDB.Driver` using ASP.NET.</Description>
+    <Product>MongoDB.Migration.Core</Product>
+    <AssemblyName>MongoDB.Migration.Core</AssemblyName>
+    <PackageId>csharp-mongodb-migrations-core</PackageId>
+    <Description>Core components for `MongoDB.Driver` datbase migrations using `ASP.NET`.</Description>
     <PackageTags>MongoDB;Migration;Database-Migrations;ASP.NET</PackageTags>
   </PropertyGroup>
 
@@ -26,10 +26,6 @@
   </ItemGroup>
   <ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">
     <PackageReference Include="System.Collections.Immutable" Version="7.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\MongoDB.Migration.Core\MongoDB.Migration.Core.csproj" />
   </ItemGroup>
 
 </Project>

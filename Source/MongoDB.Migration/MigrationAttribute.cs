@@ -1,16 +1,16 @@
-using MongoDB.Driver;
+using MongoDB.Migration.Core;
 
 namespace MongoDB.Migration;
 
 /// <summary>
-/// Annotates a <see cref="IMigration"/> with version and database information.
+/// Annotates a <see cref="IMongoMigration"/> with version and database information.
 /// </summary>
 /// <param name="database">The name of the database alias.</param>
-/// <param name="downVersion">The version to which <see cref="IMigration.DownAsync"/> and from which <see cref="IMigration.UpAsync"/> migrates.</param>
-/// <param name="upVersion">The version to which <see cref="IMigration.UpAsync"/> and from which <see cref="IMigration.DownAsync"/> migrates.</param>
-/// <seealso cref="IMigration"/>
+/// <param name="downVersion">The version to which <see cref="IMongoMigration.DownAsync"/> and from which <see cref="IMongoMigration.UpAsync"/> migrates.</param>
+/// <param name="upVersion">The version to which <see cref="IMongoMigration.UpAsync"/> and from which <see cref="IMongoMigration.DownAsync"/> migrates.</param>
+/// <seealso cref="IMongoMigration"/>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
-public sealed class MigrationAttribute(string database, long downVersion, long upVersion) : Attribute
+public sealed class MongoMigrationAttribute(string database, long downVersion, long upVersion) : Attribute
 {
     /// <summary>
     /// The optional description fo the migraiton.
@@ -21,34 +21,11 @@ public sealed class MigrationAttribute(string database, long downVersion, long u
     /// </summary>
     public string Database => database;
     /// <summary>
-    /// The version to which <see cref="IMigration.DownAsync"/> and from which <see cref="IMigration.UpAsync"/> migrates.
+    /// The version to which <see cref="IMongoMigration.DownAsync"/> and from which <see cref="IMongoMigration.UpAsync"/> migrates.
     /// </summary>
     public long UpVersion => upVersion;
     /// <summary>
-    /// The version to which <see cref="IMigration.UpAsync"/> and from which <see cref="IMigration.DownAsync"/> migrates.
+    /// The version to which <see cref="IMongoMigration.UpAsync"/> and from which <see cref="IMongoMigration.DownAsync"/> migrates.
     /// </summary>
     public long DownVersion => downVersion;
-}
-
-/// <summary>
-/// Migrates a database between two versions. Requires annotation with <see cref="MigrationAttribute"/>.
-/// </summary>
-/// <seealso cref="MigrationAttribute"/>
-public interface IMigration
-{
-    /// <summary>
-    /// Migrates the database from the down version to the up version.
-    /// </summary>
-    /// <param name="database">The database to migrate.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The task.</returns>
-    Task UpAsync(IMongoDatabase database, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Migrates the database from the up version to the down version.
-    /// </summary>
-    /// <param name="database">The database to migrate.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The task.</returns>
-    Task DownAsync(IMongoDatabase database, CancellationToken cancellationToken = default);
 }

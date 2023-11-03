@@ -90,6 +90,7 @@ namespace System.Threading.Tasks
 }
 #endif
 
+
 #if !NET6_0_OR_GREATER
 namespace System.Linq
 {
@@ -509,3 +510,202 @@ namespace System.Linq
     }
 }
 #endif
+
+
+#if !NET6_0_OR_GREATER
+namespace System.Collections.Generic
+{
+    using System.Collections.Generic;
+
+    internal sealed class PriorityQueue<TElement, TPriority>
+    {
+        private readonly List<(TPriority Priority, TElement Element)> _elements;
+        private readonly IComparer<TPriority>? _comparer;
+
+        public PriorityQueue() : this(0)
+        {
+        }
+
+        public PriorityQueue(int size)
+            : this(size, null)
+        {
+        }
+
+        public PriorityQueue(IComparer<TPriority>? comparer) : this(0, comparer)
+        {
+
+        }
+
+        public PriorityQueue(int size, IComparer<TPriority>? comparer)
+        {
+            _elements = new(size);
+            _comparer = comparer;
+        }
+
+        public PriorityQueue(IEnumerable<(TElement Element, TPriority Priority)> values)
+            : this(values, null)
+        {
+
+        }
+
+        public PriorityQueue(IEnumerable<(TElement Element, TPriority Priority)> values, IComparer<TPriority>? comparer)
+            : this(comparer)
+        {
+            foreach (var (element, priority) in values)
+            {
+                Enqueue(element, priority);
+            }
+        }
+
+        private int GetLeftChildIndex(int elementIndex) => 2 * elementIndex + 1;
+        private int GetRightChildIndex(int elementIndex) => 2 * elementIndex + 2;
+        private int GetParentIndex(int elementIndex) => (elementIndex - 1) / 2;
+
+        private bool HasLeftChild(int elementIndex) => GetLeftChildIndex(elementIndex) < _elements.Count;
+        private bool HasRightChild(int elementIndex) => GetRightChildIndex(elementIndex) < _elements.Count;
+        private bool IsRoot(int elementIndex) => elementIndex == 0;
+
+        private (TPriority Priority, TElement Element) GetLeftChild(int elementIndex) => _elements[GetLeftChildIndex(elementIndex)];
+        private (TPriority Priority, TElement Element) GetRightChild(int elementIndex) => _elements[GetRightChildIndex(elementIndex)];
+        private (TPriority Priority, TElement Element) GetParent(int elementIndex) => _elements[GetParentIndex(elementIndex)];
+
+        private int Compare(TPriority lhs, TPriority rhs)
+        {
+            if (_comparer is null)
+            {
+                return Comparer<TPriority>.Default.Compare(lhs, rhs);
+            }
+            return _comparer.Compare(lhs, rhs);
+        }
+
+        private void Swap(int firstIndex, int secondIndex)
+        {
+            var temp = _elements[firstIndex];
+            _elements[firstIndex] = _elements[secondIndex];
+            _elements[secondIndex] = temp;
+        }
+
+        private void ReCalculateDown()
+        {
+            int index = 0;
+            while (HasLeftChild(index))
+            {
+                var smallerIndex = GetLeftChildIndex(index);
+                if (HasRightChild(index) && Compare(GetRightChild(index).Priority, GetLeftChild(index).Priority) < 0)
+                {
+                    smallerIndex = GetRightChildIndex(index);
+                }
+
+                if (Compare(_elements[smallerIndex].Priority, _elements[index].Priority) >= 0)
+                {
+                    break;
+                }
+
+                Swap(smallerIndex, index);
+                index = smallerIndex;
+            }
+        }
+
+        private void ReCalculateUp()
+        {
+            var index = _elements.Count - 1;
+            while (!IsRoot(index) && Compare(_elements[index].Priority, GetParent(index).Priority) < 0)
+            {
+                var parentIndex = GetParentIndex(index);
+                Swap(parentIndex, index);
+                index = parentIndex;
+            }
+        }
+
+        public void Clear()
+        {
+            _elements.Clear();
+        }
+
+        public void Enqueue(TElement element, TPriority priority)
+        {
+            _elements.Add((priority, element));
+
+            ReCalculateUp();
+        }
+
+        public TElement EnqueueDequeue(TElement element, TPriority priority)
+        {
+            if (_elements.Count == 0)
+            {
+                return element;
+            }
+
+            var result = _elements[0];
+            _elements[0] = (priority, element);
+
+            ReCalculateDown();
+            return result.Element;
+        }
+
+        public void EnqueueRange(IEnumerable<TElement> elements, TPriority priority)
+        {
+            foreach (var element in elements)
+            {
+                Enqueue(element, priority);
+            }
+        }
+
+        public void EnsureCapacity(int capacity)
+        {
+            // not supported
+        }
+
+        public TElement Peek()
+        {
+            return _elements[0].Element;
+        }
+
+        public void TrimExcess()
+        {
+            _elements.TrimExcess();
+        }
+
+        public bool TryPeek(out TElement element)
+        {
+            element = _elements.FirstOrDefault().Element;
+            return _elements.Count != 0;
+        }
+
+        public bool TryDequeue(out TElement element, out TPriority priority)
+        {
+            if (_elements.Count == 0)
+            {
+                element = default;
+                priority = default;
+                return false;
+            }
+
+            var result = _elements[0];
+            _elements[0] = _elements[_elements.Count - 1];
+            _elements.RemoveAt(_elements.Count - 1);
+
+            ReCalculateDown();
+
+            (priority, element) = result;
+            return true;
+        }
+
+    }
+}
+#endif
+
+namespace MongoDB.Migration
+{
+    /// <summary>
+    /// Abstracts the system clock to facilitate testing.
+    /// </summary>
+    public interface ISystemClock
+    {
+        /// <summary>
+        /// Retrieves the current system time in UTC.
+        /// </summary>
+        DateTimeOffset UtcNow { get; }
+    }
+}
+#pragma warning restore

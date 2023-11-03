@@ -2,7 +2,7 @@
 
 # MongoDB Migrations
 
-Simple database migrations for [`MongoDB.Driver`](https://github.com/mongodb/mongo-csharp-driver) using [ASP.NET](https://dotnet.microsoft.com/en-us/apps/aspnet) DI.
+Simple database migrations for [`MongoDB.Driver`](https://github.com/mongodb/mongo-csharp-driver) using [`ASP.NET`](https://dotnet.microsoft.com/en-us/apps/aspnet) DI.
 
 ## Quick start
 

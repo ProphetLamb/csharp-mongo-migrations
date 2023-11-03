@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.DependencyInjection;
+using MongoDB.Migration.Core;
 
 namespace MongoDB.Migration;
 
@@ -55,13 +56,13 @@ public static class MigrationExtensions
             .Where(t
                 => !t.IsAbstract
                 && !t.IsInterface
-                && typeof(IMigration).IsAssignableFrom(t)
-                && t.GetCustomAttribute<MigrationAttribute>() is { }
+                && typeof(IMongoMigration).IsAssignableFrom(t)
+                && t.GetCustomAttribute<MongoMigrationAttribute>() is { }
             );
 
         foreach (var migrationType in mirgationTypes)
         {
-            services.TryAddEnumerable(new ServiceDescriptor(typeof(IMigration), migrationType, ServiceLifetime.Scoped));
+            services.TryAddEnumerable(new ServiceDescriptor(typeof(IMongoMigration), migrationType, ServiceLifetime.Scoped));
         }
 
         DatabaseMigratableSettings databaseMigratables = new(
@@ -75,7 +76,7 @@ public static class MigrationExtensions
         return services
             .AddSingleton(databaseMigratables)
             .AddSingleton<IMigrationCompletionReciever, MigrationCompletionService>()
-            .AddSingleton<IMigrationCompletion>(sp => sp
+            .AddSingleton<IMongoMigrationCompletion>(sp => sp
                 .GetServices<IMigrationCompletionReciever>()
                 .SelectTruthy(service => service as MigrationCompletionService)
                 .Last()
@@ -89,7 +90,7 @@ public static class MigrationExtensions
                 return false;
             }
 
-            if (typeof(IDatabaseMigratable).IsAssignableFrom(type))
+            if (typeof(IMongoMigratableProvider).IsAssignableFrom(type))
             {
                 return true;
             }
@@ -100,7 +101,7 @@ public static class MigrationExtensions
             }
 
             var optionsType = type.GetGenericArguments()[0];
-            return typeof(IDatabaseMigratable).IsAssignableFrom(optionsType);
+            return typeof(IMongoMigratableProvider).IsAssignableFrom(optionsType);
         }
     }
 
@@ -111,9 +112,9 @@ public static class MigrationExtensions
     /// <param name="migratable">The migratable used to retrieve the database alias.</param>
     /// <param name="cancellationToken">The cancellation token</param>
     /// <returns>A task with the information of the migration, or null if the database is not migratable.</returns>
-    public static ValueTask<DatabaseMigrationCompleted?> WaitAsync(this IMigrationCompletion completion, IDatabaseMigratable migratable, CancellationToken cancellationToken = default)
+    public static ValueTask<MigrationCompleted?> WaitAsync(this IMongoMigrationCompletion completion, IMongoMigratableProvider migratable, CancellationToken cancellationToken = default)
     {
-        return completion.WaitAsync(migratable.GetMigrationSettings().Database, cancellationToken);
+        return completion.WaitAsync(migratable.GetMigratableDatabaseDefinition().Database, cancellationToken);
     }
 
     /// <summary>
@@ -123,7 +124,7 @@ public static class MigrationExtensions
     /// <param name="database">The database alias.</param>
     /// <param name="cancellationToken">The cancellation token</param>
     /// <returns>A task with the information of the migration, or null if the database is not migratable.</returns>
-    public static ValueTask<DatabaseMigrationCompleted?> WaitAsync(this IMigrationCompletion completion, DatabaseAlias database, CancellationToken cancellationToken = default)
+    public static ValueTask<MigrationCompleted?> WaitAsync(this IMongoMigrationCompletion completion, DatabaseAlias database, CancellationToken cancellationToken = default)
     {
         return completion.WaitAsync(database.Alias, cancellationToken);
     }

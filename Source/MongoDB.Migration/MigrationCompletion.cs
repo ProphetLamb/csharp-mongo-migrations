@@ -8,12 +8,12 @@ namespace MongoDB.Migration;
 /// <param name="DatabaseName">The name of the database.</param>
 /// <param name="DatabaseAlias">The internal alias of the database.</param>
 /// <param name="Version">The current verison of the database.</param>
-public sealed record DatabaseMigrationCompleted(string DatabaseName, string DatabaseAlias, long Version);
+public sealed record MigrationCompleted(string DatabaseName, string DatabaseAlias, long Version);
 
 /// <summary>
 /// Waits for the completion of a database migration.
 /// </summary>
-public interface IMigrationCompletion
+public interface IMongoMigrationCompletion
 {
     /// <summary>
     /// Waits for the completion of a database migration for the database.
@@ -21,7 +21,7 @@ public interface IMigrationCompletion
     /// <param name="databaseAlias">The alias of the database for whose migration to wait.</param>
     /// <param name="cancellationToken">The cancellation token</param>
     /// <returns>A task with the information of the migration, or null if the database is not migratable.</returns>
-    ValueTask<DatabaseMigrationCompleted?> WaitAsync(string databaseAlias, CancellationToken cancellationToken = default);
+    ValueTask<MigrationCompleted?> WaitAsync(string databaseAlias, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -33,7 +33,7 @@ public interface IMigrationCompletionReciever
     /// Handles the completion of the migration of a database.
     /// </summary>
     /// <param name="message">The migration</param>
-    internal void Handle(DatabaseMigrationCompleted message);
+    internal void Handle(MigrationCompleted message);
 
     /// <summary>
     /// Clears all completions and sets the list of known databases.
@@ -41,13 +41,13 @@ public interface IMigrationCompletionReciever
     internal void WithKnownDatabaseAliases(ImmutableHashSet<string> databaseMigratablesAliases);
 }
 
-internal sealed class MigrationCompletionService : IMigrationCompletion, IMigrationCompletionReciever
+internal sealed class MigrationCompletionService : IMongoMigrationCompletion, IMigrationCompletionReciever
 {
-    private readonly SortedList<string, DatabaseMigrationCompleted> _completedMigrations = [];
-    private readonly Dictionary<string, TaskCompletionSource<DatabaseMigrationCompleted?>> _migrationCompletions = [];
+    private readonly SortedList<string, MigrationCompleted> _completedMigrations = [];
+    private readonly Dictionary<string, TaskCompletionSource<MigrationCompleted?>> _migrationCompletions = [];
     private ImmutableHashSet<string>? _databaseMigratablesAliases;
 
-    private void AddToCompletion(DatabaseMigrationCompleted migration)
+    private void AddToCompletion(MigrationCompleted migration)
     {
         lock (_completedMigrations)
         {
@@ -60,7 +60,7 @@ internal sealed class MigrationCompletionService : IMigrationCompletion, IMigrat
         }
     }
 
-    public ValueTask<DatabaseMigrationCompleted?> WaitAsync(string databaseAlias, CancellationToken cancellationToken = default)
+    public ValueTask<MigrationCompleted?> WaitAsync(string databaseAlias, CancellationToken cancellationToken = default)
     {
         lock (_completedMigrations)
         {
@@ -86,7 +86,7 @@ internal sealed class MigrationCompletionService : IMigrationCompletion, IMigrat
         }
     }
 
-    void IMigrationCompletionReciever.Handle(DatabaseMigrationCompleted message)
+    void IMigrationCompletionReciever.Handle(MigrationCompleted message)
     {
         AddToCompletion(message);
     }

@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using MongoDB.Driver;
 
-namespace MongoDB.Migration;
+namespace MongoDB.Migration.Core;
 
 /// <summary>
 /// Computes a continioues path/trace of migration from one version to another.
@@ -12,9 +12,9 @@ internal sealed class MigrationGraph
     private readonly IReadOnlyDictionary<long, ImmutableArray<Node>> _migrationByUpVersion;
     private readonly long _startVersion;
     private readonly long _endVersion;
-    private readonly ImmutableArray<MigrationExecutionDescriptor> _orderedMigrations;
+    private readonly ImmutableArray<MigrationDescriptor> _orderedMigrations;
 
-    public MigrationGraph(ImmutableArray<MigrationExecutionDescriptor> migrations, long startVersion, long endVersion)
+    public MigrationGraph(ImmutableArray<MigrationDescriptor> migrations, long startVersion, long endVersion)
     {
         _orderedMigrations = migrations;
         _migrationByDownVersion = migrations
@@ -26,15 +26,15 @@ internal sealed class MigrationGraph
     }
 
     /// <summary>
-    /// Creates a <see cref="MigrationGraph"/> from an arbitrary sequence of migrations, starting at <see cref="MigrationExecutionDescriptor.DownVersion"/> greater or equal to <paramref name="currentVersion"/> and ending with <see cref="MigrationExecutionDescriptor.UpVersion"/> less then or equal to <paramref name="targetVersion"/> if specified.
+    /// Creates a <see cref="MigrationGraph"/> from an arbitrary sequence of migrations, starting at <see cref="MigrationDescriptor.DownVersion"/> greater or equal to <paramref name="currentVersion"/> and ending with <see cref="MigrationDescriptor.UpVersion"/> less then or equal to <paramref name="targetVersion"/> if specified.
     /// </summary>
     /// <param name="migrations">The sequence of migrations.</param>
-    /// <param name="currentVersion">The minimum respected <see cref="MigrationExecutionDescriptor.DownVersion"/>.</param>
-    /// <param name="targetVersion">The maximum respected <see cref="MigrationExecutionDescriptor.UpVersion"/>.</param>
+    /// <param name="currentVersion">The minimum respected <see cref="MigrationDescriptor.DownVersion"/>.</param>
+    /// <param name="targetVersion">The maximum respected <see cref="MigrationDescriptor.UpVersion"/>.</param>
     /// <returns></returns>
-    public static MigrationGraph? CreateOrDefault(IEnumerable<MigrationExecutionDescriptor> migrations, long? currentVersion, long? targetVersion = null)
+    public static MigrationGraph? CreateOrDefault(IEnumerable<MigrationDescriptor> migrations, long? currentVersion, long? targetVersion = null)
     {
-        SortedList<long, MigrationExecutionDescriptor> orderedMigrations = [];
+        SortedList<long, MigrationDescriptor> orderedMigrations = [];
         foreach (var migration in migrations)
         {
             if ((currentVersion is { } c && c > migration.DownVersion)
@@ -132,11 +132,11 @@ internal sealed class MigrationGraph
         }
     }
 
-    public IEnumerable<MigrationExecutionDescriptor> GetMigrationTrace()
+    public IEnumerable<MigrationDescriptor> GetMigrationTrace()
     {
         TraceDistance();
         EnsureTracePlausible();
-        Stack<MigrationExecutionDescriptor> trace = [];
+        Stack<MigrationDescriptor> trace = [];
         var downVersion = _endVersion;
         while (downVersion > _startVersion)
         {
@@ -169,9 +169,9 @@ internal sealed class MigrationGraph
     }
 
 
-    private sealed class Node(MigrationExecutionDescriptor migration)
+    private sealed class Node(MigrationDescriptor migration)
     {
-        public MigrationExecutionDescriptor Migration => migration;
+        public MigrationDescriptor Migration => migration;
         public long Distance { get; set; } = long.MaxValue;
         public bool IsVisited { get; set; }
         public Node? Previous { get; set; }
