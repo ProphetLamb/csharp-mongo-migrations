@@ -139,3 +139,7 @@ MongoDB Migration extensively uses ASP.NET to prepare the environment required f
 -   [x] Allow upgrading the database to a specific version.
 -   [x] Allow downgrading the database to a specific version.
 -   [ ] Add test cases.
+
+## Disclaimer
+
+`csharp-mongo-migration` is not affiliated with or endorsed by [MongoDB](https://www.mongodb.com). MONGODB & MONGO are registered trademarks of MongoDB, Inc.
