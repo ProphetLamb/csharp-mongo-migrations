@@ -15,12 +15,12 @@
     <Copyright>Copyright 2023 © ProphetLamb. All rights Reserved</Copyright>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/ProphetLamb/MongoDB.Migration</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/ProphetLamb/csharp-mongo-migrations</PackageProjectUrl>
     <PackageIcon>Icon.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <RepositoryUrl>https://github.com/ProphetLamb/MongoDB.Migration.git</RepositoryUrl>
+    <RepositoryUrl>https://github.com/ProphetLamb/csharp-mongo-migrations.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageReleaseNotes>https://github.com/ProphetLamb/MongoDB.Migration/releases</PackageReleaseNotes>
+    <PackageReleaseNotes>https://github.com/ProphetLamb/csharp-mongo-migrations/releases</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup Label="Package References">
