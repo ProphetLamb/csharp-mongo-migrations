@@ -23,6 +23,10 @@
     <PackageReleaseNotes>https://github.com/ProphetLamb/csharp-mongo-migrations/releases</PackageReleaseNotes>
   </PropertyGroup>
 
+  <PropertyGroup Label="Versioning">
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+  </PropertyGroup>
+
   <ItemGroup Label="Package References">
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" PrivateAssets="all" Version="17.7.30" />
     <PackageReference Include="MinVer" PrivateAssets="all" Version="4.3.0" />
