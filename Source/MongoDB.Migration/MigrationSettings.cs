@@ -50,5 +50,10 @@ public sealed record DatabaseMigrationSettings : IOptions<DatabaseMigrationSetti
     /// </summary>
     public required string ConnectionString { get; init; }
 
+    /// <summary>
+    /// The specific version to which to migrate the database; otherwise migrates up to the latest version.
+    /// </summary>
+    public long? MigrateToVersion { get; init; }
+
     DatabaseMigrationSettings IOptions<DatabaseMigrationSettings>.Value => this;
 }
