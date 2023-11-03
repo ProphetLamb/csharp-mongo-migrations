@@ -26,7 +26,15 @@ public sealed record DatabaseAlias(string Alias, string Name);
 [BsonIgnoreExtraElements]
 public sealed record DatabaseVersion(string Database, long Version, DateTimeOffset Started, DateTimeOffset? Completed = null);
 
-internal sealed record MigrationExecutionDescriptor(string Database, long UpVersion, long DownVersion, IMigration MigrationService, string? Description = null);
+/// <summary>
+/// Fully defined description of a migration, a combination of the <see cref="MigrationAttribute"/> and <see cref="IMigration"/>.
+/// </summary>
+/// <param name="Database">The alias of the database used in the codebase.</param>
+/// <param name="UpVersion">The version to which <see cref="IMigration.DownAsync"/> and from which <see cref="IMigration.UpAsync"/> migrates.</param>
+/// <param name="DownVersion">The version to which <see cref="IMigration.UpAsync"/> and from which <see cref="IMigration.DownAsync"/> migrates.</param>
+/// <param name="MigrationService">The service performing the migration.</param>
+/// <param name="Description">The description of the migraitons service.</param>
+public sealed record MigrationExecutionDescriptor(string Database, long UpVersion, long DownVersion, IMigration MigrationService, string? Description = null);
 
 /// <summary>
 /// Background service executing migrations.
@@ -35,47 +43,12 @@ internal sealed record MigrationExecutionDescriptor(string Database, long UpVers
 /// <param name="serviceProvider">The service provider.</param>
 /// <param name="migrationCompletedPublisher">Collects the migration completions.</param>
 /// <param name="logger">The logger.</param>
-/// <param name="clock">The clock.</param>
-public sealed class DatabaseMigrationService(DatabaseMigratableSettings databaseMigratables, IServiceProvider serviceProvider, IMigrationCompletionReciever migrationCompletedPublisher, ILogger<DatabaseMigrationService>? logger = null)
+internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databaseMigratables, IServiceProvider serviceProvider, IMigrationCompletionReciever migrationCompletedPublisher, ILogger<DatabaseMigrationService>? logger = null)
     : IHostedService, IDisposable
 {
     private Task? _executeTask;
     private CancellationTokenSource? _executeCts;
 
-    private static async Task<(long Count, DatabaseVersion? First, DatabaseVersion? Current)> GetMigrationStateAsync(IMongoCollection<DatabaseVersion> collection, string databaseName, CancellationToken cancellationToken)
-    {
-        var migrationsCount = await collection
-            .Find(migration => migration.Database == databaseName)
-            .CountDocumentsAsync(cancellationToken)
-            .ConfigureAwait(false);
-        var firstMigration = await collection
-            .Find(migration => migration.Database == databaseName)
-            .SortBy(migration => migration.Version)
-            .FirstAsync(cancellationToken)
-            .ConfigureAwait(false);
-        var currentMigration = await collection
-            .Find(migration => migration.Database == databaseName)
-            .SortByDescending(migration => migration.Version)
-            .FirstAsync(cancellationToken)
-            .ConfigureAwait(false);
-        return (migrationsCount, firstMigration, currentMigration);
-    }
-
-    private static MigrationExecutionDescriptor? ToMigrationOrDefault(IMigration service)
-    {
-        var serviceType = service.GetType();
-        if (serviceType.GetCustomAttribute<MigrationAttribute>() is not { } migrationDefinition)
-        {
-            return null;
-        }
-        return new(
-            migrationDefinition.Database,
-            migrationDefinition.UpVersion,
-            migrationDefinition.DownVersion,
-            service,
-            migrationDefinition.Description
-        );
-    }
 
     /// <summary>
     /// Migrates the database to the latest version.
@@ -85,6 +58,8 @@ public sealed class DatabaseMigrationService(DatabaseMigratableSettings database
     /// <returns>The task.</returns>
     public async Task MigrateToVersionAsync(DatabaseMigrationSettings settings, CancellationToken stoppingToken)
     {
+        var databaseAlias = settings.Database.Alias;
+
         logger?.LogInformation(
             "Begining migration of {Database}",
             settings.Database.Alias
@@ -93,7 +68,14 @@ public sealed class DatabaseMigrationService(DatabaseMigratableSettings database
         long migratedVersion;
         await using (var scope = serviceProvider.CreateAsyncScope())
         {
-            migratedVersion = await MigrateToVersionScoped(scope, settings, stoppingToken).ConfigureAwait(false);
+
+            var migrations = scope.ServiceProvider.GetServices<IMigration>()
+                .SelectTruthy(ToMigrationOrDefault)
+                .Where(migration => migration.Database == databaseAlias)
+                .ToImmutableArray();
+
+            DatabaseMirationProcessor processor = new(settings, logger);
+            migratedVersion = await processor.MigrateToVersionAsync(migrations, stoppingToken).ConfigureAwait(false);
         }
 
         logger?.LogInformation(
@@ -108,166 +90,6 @@ public sealed class DatabaseMigrationService(DatabaseMigratableSettings database
                 migratedVersion
             )
         );
-
-        async Task<long> MigrateToVersionScoped(AsyncServiceScope scope, DatabaseMigrationSettings options, CancellationToken stoppingToken)
-        {
-            var databaseName = options.Database.Name;
-            var databaseAlias = options.Database.Alias;
-
-            var migrations = scope.ServiceProvider.GetServices<IMigration>()
-                .SelectTruthy(ToMigrationOrDefault)
-                .Where(migration => migration.Database == databaseAlias)
-                .ToImmutableArray();
-
-            logger?.LogInformation(
-                "Found {MigrationCount} locally available migrations for {Database} from {LowestVersion} to {HighestVersion}",
-                migrations.Length,
-                databaseName,
-                migrations.Select(m => m.DownVersion).Min(),
-                migrations.Select(m => m.UpVersion).Max()
-            );
-
-            logger?.LogInformation("Determine database migration state");
-
-            MongoClient client = new(options.ConnectionString);
-            var database = client.GetDatabase(databaseName);
-            var collection = database.GetCollection<DatabaseVersion>(options.MirgrationStateCollectionName);
-
-            var (migrationsCount, firstMigration, currentMigration) = await GetMigrationStateAsync(collection, databaseAlias, stoppingToken).ConfigureAwait(false);
-
-            logger?.LogInformation(
-                "Found {MigrationCount} applied migrations for {Database} at version {CurrentVersion} from {LowestVersion} to {HighestVersion}",
-                migrationsCount,
-                databaseName,
-                currentMigration?.Version,
-                firstMigration?.Version,
-                currentMigration?.Version
-            );
-            logger?.LogInformation(
-                "Determine all required migation"
-            );
-
-            var (downgrade, requiredMigrations) = (currentMigration?.Version, settings.MigrateToVersion) switch
-            {
-                (var currentVersion, null) => (
-                    false,
-                    GetRequiredMigrations(migrations, currentVersion).ToImmutableArray()
-                ),
-                (null, var targetVersion) => (
-                    false,
-                    GetRequiredMigrations(migrations.Where(m => m.UpVersion <= targetVersion).ToImmutableArray(), null).ToImmutableArray()
-                ),
-                (var currentVersion, var targetVersion) => currentVersion < targetVersion
-                    ? (false, GetRequiredMigrations(migrations.Where(m => m.UpVersion <= targetVersion && m.DownVersion >= currentVersion).ToImmutableArray(), currentVersion).ToImmutableArray())
-                    : (true, GetRequiredMigrations(migrations.Where(m => m.DownVersion >= targetVersion && m.UpVersion <= currentVersion).ToImmutableArray(), targetVersion).Reverse().ToImmutableArray())
-            };
-
-            if (requiredMigrations.IsDefaultOrEmpty)
-            {
-                return currentMigration?.Version ?? 0;
-            }
-
-            if (downgrade)
-            {
-                return await MigrateDownToVersionAsync(requiredMigrations, stoppingToken).ConfigureAwait(false);
-            }
-
-            return await MigrateUpToVersionAsync(requiredMigrations, stoppingToken).ConfigureAwait(false);
-
-            async Task<long> MigrateUpToVersionAsync(ImmutableArray<MigrationExecutionDescriptor> requiredMigrations, CancellationToken stoppingToken)
-            {
-                logger?.LogInformation(
-                    "Migrating {Database} in {RequiredMigrationsCount} steps {RequiredMigrationsVersions}",
-                    databaseName,
-                    requiredMigrations.Length,
-                    $"{requiredMigrations.First().DownVersion} -> {string.Join(" -> ", requiredMigrations.Select(m => m.UpVersion))}"
-                );
-
-                foreach (var migration in requiredMigrations)
-                {
-                    logger?.LogDebug(
-                        "Begining migration for {Database} from {DownVersion} to {UpVersion}: {MigrationDescription}",
-                        migration.Database,
-                        migration.DownVersion,
-                        migration.UpVersion,
-                        migration.Description
-                    );
-
-                    var startedTimestamp = DateTimeOffset.UtcNow;
-                    DatabaseVersion startedVersion = new(databaseName, migration.UpVersion, startedTimestamp, null);
-                    await collection.InsertOneAsync(startedVersion, null, stoppingToken).ConfigureAwait(false);
-
-                    await migration.MigrationService.UpAsync(database, stoppingToken).ConfigureAwait(false);
-
-                    var completedTimestamp = DateTimeOffset.UtcNow;
-                    _ = await collection.UpdateOneAsync(
-                        v => v.Version == startedVersion.Version,
-                        Builders<DatabaseVersion>.Update.Set(d => d.Completed, completedTimestamp),
-                        null,
-                        stoppingToken
-                    )
-                        .ConfigureAwait(false);
-
-                    logger?.LogDebug(
-                        "Completed migration for {Database} from {DownVersion} to {UpVersion}",
-                        migration.Database,
-                        migration.DownVersion,
-                        migration.UpVersion
-                    );
-                }
-                return requiredMigrations.Last().UpVersion;
-            }
-
-            async Task<long> MigrateDownToVersionAsync(ImmutableArray<MigrationExecutionDescriptor> requiredMigrations, CancellationToken stoppingToken)
-            {
-                logger?.LogInformation(
-                    "Migrating {Database} in {RequiredMigrationsCount} steps {RequiredMigrationsVersions}",
-                    databaseName,
-                    requiredMigrations.Length,
-                    $"{requiredMigrations.First().UpVersion} -> {string.Join(" -> ", requiredMigrations.Select(m => m.DownVersion))}"
-                );
-
-                foreach (var migration in requiredMigrations)
-                {
-                    logger?.LogDebug(
-                        "Begining migration for {Database} from {UpVersion} to {DownVersion}: {MigrationDescription}",
-                        migration.Database,
-                        migration.UpVersion,
-                        migration.DownVersion,
-                        migration.Description
-                    );
-
-                    var startedTimestamp = DateTimeOffset.UtcNow;
-                    DatabaseVersion startedVersion = new(databaseName, migration.UpVersion, startedTimestamp, null);
-                    await collection.InsertOneAsync(startedVersion, null, stoppingToken).ConfigureAwait(false);
-
-                    await migration.MigrationService.UpAsync(database, stoppingToken).ConfigureAwait(false);
-
-                    var completedTimestamp = DateTimeOffset.UtcNow;
-                    _ = await collection.UpdateOneAsync(
-                        v => v.Version == startedVersion.Version,
-                        Builders<DatabaseVersion>.Update.Set(d => d.Completed, completedTimestamp),
-                        null,
-                        stoppingToken
-                    )
-                        .ConfigureAwait(false);
-
-                    logger?.LogDebug(
-                        "Completed migration for {Database} from {UpVersion} to {DownVersion}",
-                        migration.Database,
-                        migration.UpVersion,
-                        migration.DownVersion
-                    );
-                }
-                return requiredMigrations.Last().UpVersion;
-            }
-
-        }
-    }
-
-    private static IEnumerable<MigrationExecutionDescriptor> GetRequiredMigrations(ImmutableArray<MigrationExecutionDescriptor> availableMigrations, long? currentVersion)
-    {
-        return MigrationGraph.CreateOrDefault(availableMigrations, currentVersion)?.GetMigrationTrace() ?? Enumerable.Empty<MigrationExecutionDescriptor>();
     }
 
     private async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -311,6 +133,22 @@ public sealed class DatabaseMigrationService(DatabaseMigratableSettings database
         }
     }
 
+    private static MigrationExecutionDescriptor? ToMigrationOrDefault(IMigration service)
+    {
+        var serviceType = service.GetType();
+        if (serviceType.GetCustomAttribute<MigrationAttribute>() is not { } migrationDefinition)
+        {
+            return null;
+        }
+        return new(
+            migrationDefinition.Database,
+            migrationDefinition.UpVersion,
+            migrationDefinition.DownVersion,
+            service,
+            migrationDefinition.Description
+        );
+    }
+
     /// <inheritdoc/>
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -352,4 +190,181 @@ public sealed class DatabaseMigrationService(DatabaseMigratableSettings database
     {
         _executeCts?.Cancel();
     }
+}
+
+public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings, ILogger<DatabaseMigrationService>? logger = null)
+{
+    private static async Task<(long Count, DatabaseVersion? First, DatabaseVersion? Current)> GetMigrationStateAsync(IMongoCollection<DatabaseVersion> collection, string databaseName, CancellationToken cancellationToken)
+    {
+        var migrationsCount = await collection
+            .Find(migration => migration.Database == databaseName)
+            .CountDocumentsAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var firstMigration = await collection
+            .Find(migration => migration.Database == databaseName)
+            .SortBy(migration => migration.Version)
+            .FirstAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var currentMigration = await collection
+            .Find(migration => migration.Database == databaseName)
+            .SortByDescending(migration => migration.Version)
+            .FirstAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return (migrationsCount, firstMigration, currentMigration);
+    }
+
+    public async Task<long> MigrateToVersionAsync(ImmutableArray<MigrationExecutionDescriptor> migrations, CancellationToken stoppingToken)
+    {
+        var databaseName = settings.Database.Name;
+        var databaseAlias = settings.Database.Alias;
+
+        logger?.LogInformation(
+            "Found {MigrationCount} locally available migrations for {Database} from {LowestVersion} to {HighestVersion}",
+            migrations.Length,
+            databaseName,
+            migrations.Select(m => m.DownVersion).Min(),
+            migrations.Select(m => m.UpVersion).Max()
+        );
+
+        logger?.LogInformation("Determine database migration state");
+
+        MongoClient client = new(settings.ConnectionString);
+        var database = client.GetDatabase(databaseName);
+        var collection = database.GetCollection<DatabaseVersion>(settings.MirgrationStateCollectionName);
+
+        var (migrationsCount, firstMigration, currentMigration) = await GetMigrationStateAsync(collection, databaseAlias, stoppingToken).ConfigureAwait(false);
+
+        logger?.LogInformation(
+            "Found {MigrationCount} applied migrations for {Database} at version {CurrentVersion} from {LowestVersion} to {HighestVersion}",
+            migrationsCount,
+            databaseName,
+            currentMigration?.Version,
+            firstMigration?.Version,
+            currentMigration?.Version
+        );
+        logger?.LogInformation(
+            "Determine all required migation"
+        );
+
+        var (downgrade, requiredMigrations) = (currentMigration?.Version, settings.MigrateToVersion) switch
+        {
+            (var currentVersion, null) => (
+                false,
+                GetRequiredMigrations(migrations, currentVersion).ToImmutableArray()
+            ),
+            (null, var targetVersion) => (
+                false,
+                GetRequiredMigrations(migrations.Where(m => m.UpVersion <= targetVersion).ToImmutableArray(), null).ToImmutableArray()
+            ),
+            (var currentVersion, var targetVersion) => currentVersion < targetVersion
+                ? (false, GetRequiredMigrations(migrations.Where(m => m.UpVersion <= targetVersion && m.DownVersion >= currentVersion).ToImmutableArray(), currentVersion).ToImmutableArray())
+                : (true, GetRequiredMigrations(migrations.Where(m => m.DownVersion >= targetVersion && m.UpVersion <= currentVersion).ToImmutableArray(), targetVersion).Reverse().ToImmutableArray())
+        };
+
+        if (requiredMigrations.IsDefaultOrEmpty)
+        {
+            return currentMigration?.Version ?? 0;
+        }
+
+        if (downgrade)
+        {
+            return await MigrateDownToVersionAsync(requiredMigrations, stoppingToken).ConfigureAwait(false);
+        }
+
+        return await MigrateUpToVersionAsync(requiredMigrations, stoppingToken).ConfigureAwait(false);
+
+        async Task<long> MigrateUpToVersionAsync(ImmutableArray<MigrationExecutionDescriptor> requiredMigrations, CancellationToken stoppingToken)
+        {
+            logger?.LogInformation(
+                "Migrating {Database} in {RequiredMigrationsCount} steps {RequiredMigrationsVersions}",
+                databaseName,
+                requiredMigrations.Length,
+                $"{requiredMigrations.First().DownVersion} -> {string.Join(" -> ", requiredMigrations.Select(m => m.UpVersion))}"
+            );
+
+            foreach (var migration in requiredMigrations)
+            {
+                logger?.LogDebug(
+                    "Begining migration for {Database} from {DownVersion} to {UpVersion}: {MigrationDescription}",
+                    migration.Database,
+                    migration.DownVersion,
+                    migration.UpVersion,
+                    migration.Description
+                );
+
+                var startedTimestamp = DateTimeOffset.UtcNow;
+                DatabaseVersion startedVersion = new(databaseName, migration.UpVersion, startedTimestamp, null);
+                await collection.InsertOneAsync(startedVersion, null, stoppingToken).ConfigureAwait(false);
+
+                await migration.MigrationService.UpAsync(database, stoppingToken).ConfigureAwait(false);
+
+                var completedTimestamp = DateTimeOffset.UtcNow;
+                _ = await collection.UpdateOneAsync(
+                    v => v.Version == startedVersion.Version,
+                    Builders<DatabaseVersion>.Update.Set(d => d.Completed, completedTimestamp),
+                    null,
+                    stoppingToken
+                )
+                    .ConfigureAwait(false);
+
+                logger?.LogDebug(
+                    "Completed migration for {Database} from {DownVersion} to {UpVersion}",
+                    migration.Database,
+                    migration.DownVersion,
+                    migration.UpVersion
+                );
+            }
+            return requiredMigrations.Last().UpVersion;
+        }
+
+        async Task<long> MigrateDownToVersionAsync(ImmutableArray<MigrationExecutionDescriptor> requiredMigrations, CancellationToken stoppingToken)
+        {
+            logger?.LogInformation(
+                "Migrating {Database} in {RequiredMigrationsCount} steps {RequiredMigrationsVersions}",
+                databaseName,
+                requiredMigrations.Length,
+                $"{requiredMigrations.First().UpVersion} -> {string.Join(" -> ", requiredMigrations.Select(m => m.DownVersion))}"
+            );
+
+            foreach (var migration in requiredMigrations)
+            {
+                logger?.LogDebug(
+                    "Begining migration for {Database} from {UpVersion} to {DownVersion}: {MigrationDescription}",
+                    migration.Database,
+                    migration.UpVersion,
+                    migration.DownVersion,
+                    migration.Description
+                );
+
+                var startedTimestamp = DateTimeOffset.UtcNow;
+                DatabaseVersion startedVersion = new(databaseName, migration.UpVersion, startedTimestamp, null);
+                await collection.InsertOneAsync(startedVersion, null, stoppingToken).ConfigureAwait(false);
+
+                await migration.MigrationService.UpAsync(database, stoppingToken).ConfigureAwait(false);
+
+                var completedTimestamp = DateTimeOffset.UtcNow;
+                _ = await collection.UpdateOneAsync(
+                    v => v.Version == startedVersion.Version,
+                    Builders<DatabaseVersion>.Update.Set(d => d.Completed, completedTimestamp),
+                    null,
+                    stoppingToken
+                )
+                    .ConfigureAwait(false);
+
+                logger?.LogDebug(
+                    "Completed migration for {Database} from {UpVersion} to {DownVersion}",
+                    migration.Database,
+                    migration.UpVersion,
+                    migration.DownVersion
+                );
+            }
+            return requiredMigrations.Last().UpVersion;
+        }
+    }
+
+    private static IEnumerable<MigrationExecutionDescriptor> GetRequiredMigrations(ImmutableArray<MigrationExecutionDescriptor> availableMigrations, long? currentVersion)
+    {
+        return MigrationGraph.CreateOrDefault(availableMigrations, currentVersion)?.GetMigrationTrace() ?? Enumerable.Empty<MigrationExecutionDescriptor>();
+    }
+
 }
