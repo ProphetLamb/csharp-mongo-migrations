@@ -55,7 +55,7 @@ public static class MigrationExtensions
             .Where(t
                 => !t.IsAbstract
                 && !t.IsInterface
-                && t.IsAssignableTo(typeof(IMigration))
+                && typeof(IMigration).IsAssignableFrom(t)
                 && t.GetCustomAttribute<MigrationAttribute>() is { }
             );
 
@@ -89,7 +89,7 @@ public static class MigrationExtensions
                 return false;
             }
 
-            if (type.IsAssignableTo(typeof(IDatabaseMigratable)))
+            if (typeof(IDatabaseMigratable).IsAssignableFrom(type))
             {
                 return true;
             }
@@ -100,7 +100,7 @@ public static class MigrationExtensions
             }
 
             var optionsType = type.GetGenericArguments()[0];
-            return optionsType.IsAssignableTo(typeof(IDatabaseMigratable));
+            return typeof(IDatabaseMigratable).IsAssignableFrom(optionsType);
         }
     }
 

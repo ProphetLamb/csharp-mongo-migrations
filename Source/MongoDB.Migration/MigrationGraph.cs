@@ -68,7 +68,7 @@ internal sealed class MigrationGraph
     /// </summary>
     private void TraceDistance()
     {
-        PriorityQueue<Node, nuint> queue = new(_orderedMigrations.Length);
+        PriorityQueue<Node, long> queue = new(_orderedMigrations.Length);
         Apply(node =>
         {
             node.IsVisited = false;
@@ -80,7 +80,7 @@ internal sealed class MigrationGraph
             }
             else
             {
-                node.Distance = nuint.MaxValue;
+                node.Distance = long.MaxValue;
             }
         });
 
@@ -172,7 +172,7 @@ internal sealed class MigrationGraph
     private sealed class Node(MigrationExecutionDescriptor migration)
     {
         public MigrationExecutionDescriptor Migration => migration;
-        public nuint Distance { get; set; } = nuint.MaxValue;
+        public long Distance { get; set; } = long.MaxValue;
         public bool IsVisited { get; set; }
         public Node? Previous { get; set; }
     }
