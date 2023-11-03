@@ -2,7 +2,7 @@
 
 # MongoDB Migration
 
-Simple database migrations for `MongoDB.Driver` using ASP.NET.
+Simple database migrations for [`MongoDB.Driver`](https://github.com/mongodb/mongo-csharp-driver) using [ASP.NET](https://dotnet.microsoft.com/en-us/apps/aspnet) DI.
 
 ## Quick start
 
@@ -124,7 +124,7 @@ public DatabaseMigrationSettings GetMigrationSettings()
 }
 ```
 
-## Migrations without ASP.NET
+## Migrations without ASP.NET DI
 
 MongoDB Migration extensively uses ASP.NET to prepare the environment required for processing of migrations. Without ASP.NET most features are unavailable, but the core - `DatabaseMirationProcessor` - public API; it is accessible to the user.
 
