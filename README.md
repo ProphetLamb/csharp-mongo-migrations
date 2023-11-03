@@ -42,7 +42,10 @@ public sealed record MyDatabaseSettings : IOptions<MyDatabaseSettings>, IDatabas
 
 ### Await migrations
 
-Wait for migrations to complete using `IMigrationCompletion` before accessing the database. The call is fast when the migration is completed, or the database is not configured.
+Wait for migrations to complete using `IMigrationCompletion` before accessing the database.
+
+-   The call is fast when the migration is completed, or the database is not configured.
+-   `IMigrationCompletion.WaitAsync` may not ever be called in constructors.
 
 ```csharp
 sealed class MyRepository(IOptions<MyDatabaseSettings> databaseSettings, IMigrationCompletion migrationCompletion) {
@@ -50,8 +53,8 @@ sealed class MyRepository(IOptions<MyDatabaseSettings> databaseSettings, IMigrat
         .GetDatabase(databaseSettings.DatabaseName)
         .GetCollection<MyModel>(databaseSettings.MyCollectionName);
 
-    public async Task<MyModel> GetOrSet(MyModel insertModel) {
-        _ = await migrationCompletion.WaitAsync("MyDatabase").ConfigureAwait(false);
+    public async Task<MyModel> GetOrSetAsync(MyModel insertModel, CancellationToken cancellationToken = default) {
+        _ = await migrationCompletion.WaitAsync(databaseSettings.Value, cancellationToken).ConfigureAwait(false);
         // ... do stuff
     }
 }

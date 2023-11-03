@@ -226,6 +226,30 @@ public static class MigrationExtensions
             .AddSingleton(databaseMigratables)
             .AddSingleton<DatabaseMigrationService>();
     }
+
+    /// <summary>
+    /// Waits for the completion of a database migration for the database.
+    /// </summary>
+    /// <param name="completion">The completion.</param>
+    /// <param name="migratable">The migratable used to retrieve the database alias.</param>
+    /// <param name="cancellationToken">The cancellation token</param>
+    /// <returns>A task with the information of the migration, or null if the database is not migratable.</returns>
+    public static ValueTask<DatabaseMigrationCompleted?> WaitAsync(this IMigrationCompletion completion, IDatabaseMigratable migratable, CancellationToken cancellationToken = default)
+    {
+        return completion.WaitAsync(migratable.GetMigrationSettings().Database, cancellationToken);
+    }
+
+    /// <summary>
+    /// Waits for the completion of a database migration for the database.
+    /// </summary>
+    /// <param name="completion">The completion.</param>
+    /// <param name="database">The database alias.</param>
+    /// <param name="cancellationToken">The cancellation token</param>
+    /// <returns>A task with the information of the migration, or null if the database is not migratable.</returns>
+    public static ValueTask<DatabaseMigrationCompleted?> WaitAsync(this IMigrationCompletion completion, DatabaseAlias database, CancellationToken cancellationToken = default)
+    {
+        return completion.WaitAsync(database.Alias, cancellationToken);
+    }
 }
 
 /// <summary>
@@ -237,8 +261,9 @@ public interface IMigrationCompletion
     /// Waits for the completion of a database migration for the database.
     /// </summary>
     /// <param name="databaseAlias">The alias of the database for whose migration to wait.</param>
+    /// <param name="cancellationToken">The cancellation token</param>
     /// <returns>A task with the information of the migration, or null if the database is not migratable.</returns>
-    ValueTask<DatabaseMigrationCompleted?> WaitAsync(string databaseAlias);
+    ValueTask<DatabaseMigrationCompleted?> WaitAsync(string databaseAlias, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -277,7 +302,7 @@ internal sealed class MigrationCompletionService : IMigrationCompletion, IMigrat
         }
     }
 
-    public ValueTask<DatabaseMigrationCompleted?> WaitAsync(string databaseAlias)
+    public ValueTask<DatabaseMigrationCompleted?> WaitAsync(string databaseAlias, CancellationToken cancellationToken = default)
     {
         lock (_completedMigrations)
         {
@@ -293,6 +318,11 @@ internal sealed class MigrationCompletionService : IMigrationCompletion, IMigrat
             {
                 completion = new();
                 _migrationCompletions[databaseAlias] = completion;
+            }
+
+            if (cancellationToken.CanBeCanceled)
+            {
+                return new(completion.Task.WaitAsync(cancellationToken));
             }
             return new(completion.Task);
         }
