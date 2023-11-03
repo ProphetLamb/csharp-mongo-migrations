@@ -19,7 +19,7 @@ public interface IDatabaseMigratable
 /// The list of service types implementing <see cref="IDatabaseMigratable"/>.
 /// </summary>
 /// <param name="types">The list of service types implementing <see cref="IDatabaseMigratable"/>.</param>
-public sealed class DatabaseMigratableSettings(ImmutableArray<Type> types)
+internal sealed class DatabaseMigratableSettings(ImmutableArray<Type> types)
 {
     /// <summary>
     /// The list of service types implementing <see cref="IDatabaseMigratable"/>.

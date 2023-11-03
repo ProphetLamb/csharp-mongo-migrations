@@ -6,6 +6,7 @@ using MongoDB.Bson.Serialization.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
+using MongoDB.Bson;
 
 namespace MongoDB.Migration;
 
@@ -17,14 +18,50 @@ namespace MongoDB.Migration;
 public sealed record DatabaseAlias(string Alias, string Name);
 
 /// <summary>
+/// The current state of the migration.
+/// </summary>
+internal enum VersionDirection
+{
+    None = 0,
+    Up = 1,
+    Down = 2
+}
+
+/// <summary>
 /// Represents a version to which the database was migrated.
 /// </summary>
-/// <param name="Database">The name of the database alias.</param>
-/// <param name="Version">The version of the database.</param>
-/// <param name="Started">The time at which the migration started.</param>
-/// <param name="Completed">The time at which the migration completed, if sucessful.</param>
-[BsonIgnoreExtraElements]
-internal sealed record DatabaseVersion(string Database, long Version, DateTimeOffset Started, DateTimeOffset? Completed = null);
+/// <remarks>
+/// A version is only valid when <see cref="Completed"/> is the time at which the migration completed.
+/// </remarks>
+internal sealed record DatabaseVersion
+{
+    /// <summary>
+    /// The name of the database alias.
+    /// </summary>
+    public required string Database { get; init; }
+    /// <summary>
+    /// The target version of the migration
+    /// </summary>
+    public required long Version { get; init; }
+    /// <summary>
+    /// Whether the version was reached by up- or downgrading the database.
+    /// </summary>
+    [BsonRepresentation(BsonType.String)]
+    public required VersionDirection Direction { get; init; }
+    /// <summary>
+    /// The timestamp at which the migration started.
+    /// </summary>
+    public required DateTimeOffset Started { get; init; }
+    /// <summary>
+    /// The timestamp at which the migration completed.
+    /// </summary>
+    public DateTimeOffset? Completed { get; set; }
+    /// <summary>
+    /// The Id of the object in the database, or default.
+    /// </summary>
+    [BsonId]
+    public ObjectId Id { get; set; }
+};
 
 /// <summary>
 /// Fully defined description of a migration, a combination of the <see cref="MigrationAttribute"/> and <see cref="IMigration"/>.
@@ -43,10 +80,10 @@ public sealed record MigrationExecutionDescriptor(string Database, long UpVersio
 /// <param name="serviceProvider">The service provider.</param>
 /// <param name="migrationCompletedPublisher">Collects the migration completions.</param>
 /// <param name="_logger">The logger.</param>
-internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databaseMigratables, IServiceProvider serviceProvider, IMigrationCompletionReciever migrationCompletedPublisher, ILoggerFactory? loggerFactory = null)
+internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databaseMigratables, IServiceProvider serviceProvider, IMigrationCompletionReciever migrationCompletedPublisher, ISystemClock? clock = null, ILoggerFactory? loggerFactory = null)
     : IHostedService, IDisposable
 {
-    private readonly ILogger<DatabaseMigrationService> _logger = loggerFactory.CreateLogger<DatabaseMigrationService>();
+    private readonly ILogger<DatabaseMigrationService>? _logger = loggerFactory?.CreateLogger<DatabaseMigrationService>();
     private Task? _executeTask;
     private CancellationTokenSource? _executeCts;
 
@@ -68,7 +105,7 @@ internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databa
                 .Where(migration => migration.Database == databaseAlias)
                 .ToImmutableArray();
 
-            DatabaseMirationProcessor processor = new(settings, loggerFactory.CreateLogger<DatabaseMirationProcessor>());
+            DatabaseMirationProcessor processor = new(settings, clock, loggerFactory?.CreateLogger<DatabaseMirationProcessor>());
             migratedVersion = await processor.MigrateToVersionAsync(migrations, stoppingToken).ConfigureAwait(false);
         }
 
@@ -191,25 +228,50 @@ internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databa
 /// </summary>
 /// <param name="settings">The settings describing the database.</param>
 /// <param name="logger">The optional logger.</param>
-public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings, ILogger<DatabaseMirationProcessor>? logger = null)
+public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings, ISystemClock? clock = null, ILogger<DatabaseMirationProcessor>? logger = null)
 {
-    private static async Task<(long Count, DatabaseVersion? First, DatabaseVersion? Current)> GetMigrationStateAsync(IMongoCollection<DatabaseVersion> collection, string databaseName, CancellationToken cancellationToken)
+    private static async Task<(long Count, DatabaseVersion? First, DatabaseVersion? Current, ImmutableArray<long> IncomplteMigrationVersions)> GetMigrationStateAsync(IMongoCollection<DatabaseVersion> collection, string databaseName, CancellationToken cancellationToken)
     {
-        var migrationsCount = await collection
-            .Find(migration => migration.Database == databaseName)
+        var migrationsCount = await ValidMigrations()
             .CountDocumentsAsync(cancellationToken)
             .ConfigureAwait(false);
-        var firstMigration = await collection
-            .Find(migration => migration.Database == databaseName)
-            .SortBy(migration => migration.Version)
+        var firstMigration = await ValidMigrations()
+            .SortBy(m => m.Completed)
             .FirstAsync(cancellationToken)
             .ConfigureAwait(false);
-        var currentMigration = await collection
-            .Find(migration => migration.Database == databaseName)
-            .SortByDescending(migration => migration.Version)
+        var currentMigration = await ValidMigrations()
+            .SortByDescending(m => m.Completed)
             .FirstAsync(cancellationToken)
             .ConfigureAwait(false);
-        return (migrationsCount, firstMigration, currentMigration);
+        var incompleteMigrationsVersions = await collection.Find(m => m.Database == databaseName && m.Completed == null).Project(m => m.Version).ToListAsync(cancellationToken).ConfigureAwait(false);
+        return (migrationsCount, firstMigration, currentMigration, incompleteMigrationsVersions.ToImmutableArray());
+
+        IFindFluent<DatabaseVersion, DatabaseVersion> ValidMigrations() => collection
+            .Find(m => m.Database == databaseName && m.Completed != null);
+    }
+
+    private static async Task EnsureCollectionPreparedAsync(IMongoCollection<DatabaseVersion> collection, CancellationToken cancellationToken)
+    {
+        var indicesCursor = await collection.Indexes.ListAsync(cancellationToken).ConfigureAwait(false);
+        var indices = await indicesCursor.ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        var index = GetOrderByCompletionIndex();
+        if (!indices.Any(i => i["name"] == index.Options.Name))
+        {
+            _ = await collection.Indexes.CreateOneAsync(index, null, cancellationToken).ConfigureAwait(false);
+        }
+
+        static CreateIndexModel<DatabaseVersion> GetOrderByCompletionIndex()
+        {
+            IndexKeysDefinitionBuilder<DatabaseVersion> builder = new();
+            var indexKey = builder.Descending(m => m.Completed);
+            CreateIndexModel<DatabaseVersion> model = new(indexKey, new()
+            {
+                Name = "OrderByCompletionIndex",
+                Unique = true
+            });
+            return model;
+        }
     }
 
     /// <summary>
@@ -226,29 +288,43 @@ public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings
         logger?.LogInformation(
             "Found {MigrationCount} locally available migrations for {Database} from {LowestVersion} to {HighestVersion}",
             migrations.Length,
-            databaseName,
+            databaseAlias,
             migrations.Select(m => m.DownVersion).Min(),
             migrations.Select(m => m.UpVersion).Max()
         );
 
-        logger?.LogInformation("Determine database migration state");
+        logger?.LogInformation("Preparing migration collection {MirgationCollection}", settings.MirgrationStateCollectionName);
 
         MongoClient client = new(settings.ConnectionString);
         var database = client.GetDatabase(databaseName);
         var collection = database.GetCollection<DatabaseVersion>(settings.MirgrationStateCollectionName);
 
-        var (migrationsCount, firstMigration, currentMigration) = await GetMigrationStateAsync(collection, databaseAlias, cancellationToken).ConfigureAwait(false);
+        await EnsureCollectionPreparedAsync(collection, cancellationToken).ConfigureAwait(false);
+
+        var (migrationsCount, firstMigration, currentMigration, incompleteMigrationsVersions) = await GetMigrationStateAsync(collection, databaseAlias, cancellationToken).ConfigureAwait(false);
 
         logger?.LogInformation(
             "Found {MigrationCount} applied migrations for {Database} at version {CurrentVersion} from {LowestVersion} to {HighestVersion}",
             migrationsCount,
-            databaseName,
+            databaseAlias,
             currentMigration?.Version,
             firstMigration?.Version,
             currentMigration?.Version
         );
+
+        if (!incompleteMigrationsVersions.IsDefaultOrEmpty)
+        {
+            logger?.LogCritical(
+                "Cannot apply migrations because of a corrupt database: Found {IncomplteMigrationsCount} incomplte migrations for {Database}: {IncomplteMigrationsList}.",
+                incompleteMigrationsVersions.Length,
+                databaseAlias,
+                string.Join(", ", incompleteMigrationsVersions.Select(v => v.ToString()))
+            );
+            return currentMigration?.Version ?? 0;
+        }
+
         logger?.LogInformation(
-            "Determine all required migation"
+            "Determine all required migations"
         );
 
         var (downgrade, requiredMigrations) = (currentMigration?.Version, settings.MigrateToFixedVersion) switch
@@ -282,7 +358,7 @@ public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings
         {
             logger?.LogInformation(
                 "Migrating {Database} in {RequiredMigrationsCount} steps {RequiredMigrationsVersions}",
-                databaseName,
+                databaseAlias,
                 requiredMigrations.Length,
                 $"{requiredMigrations.First().DownVersion} -> {string.Join(" -> ", requiredMigrations.Select(m => m.UpVersion))}"
             );
@@ -297,15 +373,21 @@ public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings
                     migration.Description
                 );
 
-                var startedTimestamp = DateTimeOffset.UtcNow;
-                DatabaseVersion startedVersion = new(databaseName, migration.UpVersion, startedTimestamp, null);
+                var startedTimestamp = clock?.UtcNow ?? DateTimeOffset.UtcNow;
+                DatabaseVersion startedVersion = new()
+                {
+                    Database = databaseName,
+                    Version = migration.UpVersion,
+                    Direction = VersionDirection.Up,
+                    Started = startedTimestamp
+                };
                 await collection.InsertOneAsync(startedVersion, null, stoppingToken).ConfigureAwait(false);
 
                 await migration.MigrationService.UpAsync(database, stoppingToken).ConfigureAwait(false);
 
-                var completedTimestamp = DateTimeOffset.UtcNow;
+                var completedTimestamp = clock?.UtcNow ?? DateTimeOffset.UtcNow;
                 _ = await collection.UpdateOneAsync(
-                    v => v.Version == startedVersion.Version,
+                    v => v.Id == startedVersion.Id,
                     Builders<DatabaseVersion>.Update.Set(d => d.Completed, completedTimestamp),
                     null,
                     stoppingToken
@@ -322,11 +404,11 @@ public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings
             return requiredMigrations.Last().UpVersion;
         }
 
-        async Task<long> MigrateDownToVersionAsync(ImmutableArray<MigrationExecutionDescriptor> requiredMigrations, CancellationToken stoppingToken)
+        async Task<long> MigrateDownToVersionAsync(ImmutableArray<MigrationExecutionDescriptor> requiredMigrations, CancellationToken cancellationToken)
         {
             logger?.LogInformation(
                 "Migrating {Database} in {RequiredMigrationsCount} steps {RequiredMigrationsVersions}",
-                databaseName,
+                databaseAlias,
                 requiredMigrations.Length,
                 $"{requiredMigrations.First().UpVersion} -> {string.Join(" -> ", requiredMigrations.Select(m => m.DownVersion))}"
             );
@@ -341,18 +423,23 @@ public sealed class DatabaseMirationProcessor(DatabaseMigrationSettings settings
                     migration.Description
                 );
 
-                var startedTimestamp = DateTimeOffset.UtcNow;
-                DatabaseVersion startedVersion = new(databaseName, migration.UpVersion, startedTimestamp, null);
-                await collection.InsertOneAsync(startedVersion, null, stoppingToken).ConfigureAwait(false);
+                var startedTimestamp = clock?.UtcNow ?? DateTimeOffset.UtcNow;
+                DatabaseVersion startedVersion = new()
+                {
+                    Database = databaseName,
+                    Version = migration.DownVersion,
+                    Direction = VersionDirection.Down,
+                    Started = startedTimestamp
+                };
+                await collection.InsertOneAsync(startedVersion, null, cancellationToken).ConfigureAwait(false);
+                await migration.MigrationService.UpAsync(database, cancellationToken).ConfigureAwait(false);
 
-                await migration.MigrationService.UpAsync(database, stoppingToken).ConfigureAwait(false);
-
-                var completedTimestamp = DateTimeOffset.UtcNow;
+                var completedTimestamp = clock?.UtcNow ?? DateTimeOffset.UtcNow;
                 _ = await collection.UpdateOneAsync(
-                    v => v.Version == startedVersion.Version,
+                    v => v.Id == startedVersion.Id,
                     Builders<DatabaseVersion>.Update.Set(d => d.Completed, completedTimestamp),
                     null,
-                    stoppingToken
+                    cancellationToken
                 )
                     .ConfigureAwait(false);
 
