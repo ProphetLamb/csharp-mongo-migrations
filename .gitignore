@@ -352,3 +352,7 @@ MigrationBackup/
 .ionide/
 
 Artefacts/
+
+
+## Ingore Key.snk
+Key.snk
