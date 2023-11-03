@@ -59,9 +59,9 @@ deploy:
   - provider: "GitHub"
     on:
       APPVEYOR_REPO_TAG: true
-    description: "Updated the ScrapeAAS library"
+    description: "Updated the MongoDB.Migration library"
     auth_token:
-      secure: SdasydzHH9f2Gpv1yPBDwvQc9CXLQxFnAdirCHgwc+YJECS+A7V7DaCfVPTnRtVy/J3LdAZyABTywD81jvGWJs95vp6URpxyAjnJp/j+kMusR3Zg7mMIHZ/Y4t2u+6rT
+      secure: SdasydzHH9f2Gpv1yPBDwgQA9+I61uDfM/JUmFRHjNRx8NgDcyxxi5GSYCaSrRFMg90ghR5OZER/KhuFRpm6MFIR+euELGCq2LoRHXap5JVK5rJ7Z2hlT7VdeqvpJ+tq
     artifact: /.*(\.|\.s)nupkg/
     draft: false
     prerelease: false

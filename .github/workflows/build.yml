@@ -59,7 +59,7 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.event_name == 'release'
     environment:
       name: "GitHub Packages"
-      url: https://github.com/ProphetLamb/MongoDB.Migration/packages
+      url: https://github.com/ProphetLamb/csharp-mongo-migrations/packages
     permissions:
       packages: write
     runs-on: windows-latest
