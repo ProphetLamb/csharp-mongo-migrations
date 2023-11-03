@@ -1,0 +1,81 @@
+# AppVeyor documentation https://www.appveyor.com/docs
+
+version: "{build}"
+
+image:
+  - macOS
+  - Ubuntu
+  - Visual Studio 2022
+
+environment:
+  # Disable the .NET logo in the console output.
+  DOTNET_NOLOGO: true
+  # Disable the .NET first time experience to skip caching NuGet packages and speed up the build.
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  # Disable sending .NET CLI telemetry to Microsoft.
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # Set the build number in MinVer.
+  MINVERBUILDMETADATA: build.%APPVEYOR_BUILD_NUMBER%
+  # Encryption secrets for key.snk
+  KEY_SNK_SECRET:
+    secure: N9HAUyYjUGVKwsWfc3qWOg/7Rb7U25dSzZOpoE6xAHi8CfjYC21gjyn1+KFE94ajhP3zMJX8e/SDndMVz80JMbySk3Ks41dgbd2cKKGCuGA=
+  KEY_SNK_SALT:
+    secure: G9A48BIxTbVehMk7i70X9xNXrWWSvmvmHe+D6yYhw2kdwjq0pfI1y84GCOviEPhZiAFwg9UF+LHjKU/M7Rcaeg==
+
+install:
+  # Decrypt key.snk
+  - ps: iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/appveyor/secure-file/master/install.ps1'))
+  - cmd: appveyor-tools\secure-file -decrypt key.snk.enc -secret %KEY_SNK_SECRET% -salt %KEY_SNK_SALT% -out key.snk
+  - sh: ./appveyor-tools/secure-file -decrypt key.snk.enc -secret $KEY_SNK_SECRET -salt $KEY_SNK_SALT -out key.snk
+
+build_script:
+  # https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script
+  - pwsh: |
+      if ($isWindows) {
+        Invoke-WebRequest "https://dot.net/v1/dotnet-install.ps1" -OutFile "./dotnet-install.ps1"
+        ./dotnet-install.ps1 -JSonFile global.json -InstallDir 'C:\Program Files\dotnet'
+      }
+      else {
+        Invoke-WebRequest "https://dot.net/v1/dotnet-install.sh" -OutFile "./dotnet-install.sh"
+        sudo chmod u+x dotnet-install.sh
+        if ($isMacOS) {
+          sudo ./dotnet-install.sh --jsonfile global.json --install-dir '/usr/local/share/dotnet'
+        } else {
+          sudo ./dotnet-install.sh --jsonfile global.json --install-dir '/usr/share/dotnet'
+        }
+      }
+  - pwsh: dotnet tool restore
+  - pwsh: dotnet cake --target=Build
+  - pwsh: dotnet cake --target=Test
+  - pwsh: dotnet cake --target=Pack
+
+deploy:
+  - provider: NuGet
+    on:
+      APPVEYOR_REPO_TAG: true
+    artifact: /.*(\.|\.s)nupkg/
+    api_key:
+      secure: lD1a9bilWu/PdzXrm/vNU40hBHGWFtsCfebAYswjbkNDjK+Hx4hWpySUL3zmg38W
+  - provider: "GitHub"
+    on:
+      APPVEYOR_REPO_TAG: true
+    description: "Updated the ScrapeAAS library"
+    auth_token:
+      secure: SdasydzHH9f2Gpv1yPBDwvQc9CXLQxFnAdirCHgwc+YJECS+A7V7DaCfVPTnRtVy/J3LdAZyABTywD81jvGWJs95vp6URpxyAjnJp/j+kMusR3Zg7mMIHZ/Y4t2u+6rT
+    artifact: /.*(\.|\.s)nupkg/
+    draft: false
+    prerelease: false
+
+test: false
+
+artifacts:
+  - name: NuGet Packages
+    path: ./Artefacts/**/*.nupkg
+  - name: NuGet Symbol Packages
+    path: ./Artefacts/**/*.snupkg
+  - name: xUnit XML Test Results
+    path: ./Artefacts/**/*.xml
+  - name: xUnit HTML Test Results
+    path: ./Artefacts/**/*.html
+  - name: Code Coverage
+    path: ./Artefacts/**/*.cobertura.xml
