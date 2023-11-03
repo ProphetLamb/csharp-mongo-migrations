@@ -1,6 +1,6 @@
 ![Banner](Images/Banner.png)
 
-# MongoDB Migration
+# MongoDB Migrations
 
 Simple database migrations for [`MongoDB.Driver`](https://github.com/mongodb/mongo-csharp-driver) using [ASP.NET](https://dotnet.microsoft.com/en-us/apps/aspnet) DI.
 
@@ -25,6 +25,8 @@ Inject `AddMigrations` into your services.
 -   Call `AddMigrations` after configuring options.
 
 ```csharp
+using MongoDB.Migration;
+
 services
     .Configure<MyDatabaseSettings>(builder.Configuration.GetSection("Database:MyDatabaseSettings"))
     .AddMigrations()
