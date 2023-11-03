@@ -62,7 +62,7 @@ internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databa
     private async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var migrationSettings = GetDatabaseMigratables(databaseMigratables, serviceProvider)
-            .Select(m => m.GetMigratableDatabaseDefinition())
+            .Select(m => m.GetMigratableDefinition())
             .DistinctBy(s => s.Database.Alias)
             .ToImmutableArray();
         migrationCompletedPublisher.WithKnownDatabaseAliases(migrationSettings.Select(m => m.Database.Alias).ToImmutableHashSet());
@@ -72,16 +72,16 @@ internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databa
             .ConfigureAwait(false);
     }
 
-    private static IEnumerable<IMongoMigratableProvider> GetDatabaseMigratables(DatabaseMigratableSettings databaseMigratables, IServiceProvider serviceProvider)
+    private static IEnumerable<IMongoMigratable> GetDatabaseMigratables(DatabaseMigratableSettings databaseMigratables, IServiceProvider serviceProvider)
     {
         return databaseMigratables.MigratableTypes
             .Select(serviceProvider.GetServices)
             .SelectMany(s => s)
             .SelectTruthy(CastServiceToDatabaseMigratable);
 
-        static IMongoMigratableProvider? CastServiceToDatabaseMigratable(object? service)
+        static IMongoMigratable? CastServiceToDatabaseMigratable(object? service)
         {
-            if (service is IMongoMigratableProvider m)
+            if (service is IMongoMigratable m)
             {
                 return m;
             }
@@ -95,7 +95,7 @@ internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databa
             var optionsAccessor = implType
                 .GetProperty(nameof(IOptions<object>.Value), BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy)
                 ?? throw new InvalidOperationException("The type is no U: IOptions<T> where T: IDatabaseMigratable || U: IDatabaseMigratable, or failed to produce a value.");
-            var result = (IMongoMigratableProvider)(optionsAccessor.GetValue(service) ?? throw new InvalidOperationException("The type is no U: IOptions<T> where T: IDatabaseMigratable || U: IDatabaseMigratable, or failed to produce a value."));
+            var result = (IMongoMigratable)(optionsAccessor.GetValue(service) ?? throw new InvalidOperationException("The type is no U: IOptions<T> where T: IDatabaseMigratable || U: IDatabaseMigratable, or failed to produce a value."));
             return result;
         }
     }

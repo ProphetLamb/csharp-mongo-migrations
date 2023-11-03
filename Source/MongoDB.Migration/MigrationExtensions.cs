@@ -90,7 +90,7 @@ public static class MigrationExtensions
                 return false;
             }
 
-            if (typeof(IMongoMigratableProvider).IsAssignableFrom(type))
+            if (typeof(IMongoMigratable).IsAssignableFrom(type))
             {
                 return true;
             }
@@ -101,7 +101,7 @@ public static class MigrationExtensions
             }
 
             var optionsType = type.GetGenericArguments()[0];
-            return typeof(IMongoMigratableProvider).IsAssignableFrom(optionsType);
+            return typeof(IMongoMigratable).IsAssignableFrom(optionsType);
         }
     }
 
@@ -112,9 +112,9 @@ public static class MigrationExtensions
     /// <param name="migratable">The migratable used to retrieve the database alias.</param>
     /// <param name="cancellationToken">The cancellation token</param>
     /// <returns>A task with the information of the migration, or null if the database is not migratable.</returns>
-    public static ValueTask<MigrationCompleted?> WaitAsync(this IMongoMigrationCompletion completion, IMongoMigratableProvider migratable, CancellationToken cancellationToken = default)
+    public static ValueTask<MigrationCompleted?> WaitAsync(this IMongoMigrationCompletion completion, IMongoMigratable migratable, CancellationToken cancellationToken = default)
     {
-        return completion.WaitAsync(migratable.GetMigratableDatabaseDefinition().Database, cancellationToken);
+        return completion.WaitAsync(migratable.GetMigratableDefinition().Database, cancellationToken);
     }
 
     /// <summary>
