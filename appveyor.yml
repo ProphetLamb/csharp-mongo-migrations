@@ -18,9 +18,9 @@ environment:
   MINVERBUILDMETADATA: build.%APPVEYOR_BUILD_NUMBER%
   # Encryption secrets for Key.snk
   KEY_SNK_SECRET:
-    secure: N9HAUyYjUGVKwsWfc3qWOg/7Rb7U25dSzZOpoE6xAHi8CfjYC21gjyn1+KFE94ajhP3zMJX8e/SDndMVz80JMbySk3Ks41dgbd2cKKGCuGA=
+    secure: tc6c6aXuKL90rSOdadJdyR4rqupl5PJRdU3lafV1+AwGjErTK2vFqevWjmZCNSxniXoQs8iyT4POmlzNPHh5gt5Eefy37qCY0CjdDYO0GD4=
   KEY_SNK_SALT:
-    secure: G9A48BIxTbVehMk7i70X9xNXrWWSvmvmHe+D6yYhw2kdwjq0pfI1y84GCOviEPhZiAFwg9UF+LHjKU/M7Rcaeg==
+    secure: ZsifH8w9gRtgcVPdMDsROEdbpTdR4AzLgQZsKssisnT/SgPJ579AYWCL+zmCBdFdROzPTQ75+bpSv1Np6g7ztQ==
 
 install:
   # Decrypt Key.snk
