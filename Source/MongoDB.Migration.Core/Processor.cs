@@ -103,30 +103,23 @@ public sealed class DatabaseMigrationProcessor(MongoMigrableDefinition settings,
                 databaseAlias,
                 string.Join(", ", incompleteMigrationsVersions)
             );
-            return currentMigration?.Version ?? 0;
+            throw new InvalidOperationException(
+                $"Cannot apply migrations because of a corrupt database: Found {incompleteMigrationsVersions.Length} incomplte migrations for {databaseAlias}: {string.Join(", ", incompleteMigrationsVersions)}."
+            );
         }
 
         logger?.LogInformation(
             "Determine all required migations"
         );
 
-        var (downgrade, requiredMigrations) = (currentMigration?.Version, settings.MigrateToFixedVersion) switch
-        {
-            (var currentVersion, null) => (
-                false,
-                GetRequiredMigrations(migrations, currentVersion).ToImmutableArray()
-            ),
-            (null, var targetVersion) => (
-                false,
-                GetRequiredMigrations(migrations.Where(m => m.UpVersion <= targetVersion).ToImmutableArray(), null).ToImmutableArray()
-            ),
-            (var currentVersion, var targetVersion) => currentVersion < targetVersion
-                ? (false, GetRequiredMigrations(migrations.Where(m => m.UpVersion <= targetVersion && m.DownVersion >= currentVersion).ToImmutableArray(), currentVersion).ToImmutableArray())
-                : (true, GetRequiredMigrations(migrations.Where(m => m.DownVersion >= targetVersion && m.UpVersion <= currentVersion).ToImmutableArray(), targetVersion).Reverse().ToImmutableArray())
-        };
-
+        var (downgrade, requiredMigrations) = GetRequiredMigrations(migrations, currentMigration?.Version, settings.MigrateToFixedVersion);
         if (requiredMigrations.IsDefaultOrEmpty)
         {
+            logger?.LogInformation(
+                "No migrations required, {Database} is already in the desired version {CurrentVersion}",
+                databaseAlias,
+                currentMigration?.Version ?? 0
+            );
             return currentMigration?.Version ?? 0;
         }
 
@@ -237,9 +230,32 @@ public sealed class DatabaseMigrationProcessor(MongoMigrableDefinition settings,
         }
     }
 
-    private static IEnumerable<MigrationDescriptor> GetRequiredMigrations(ImmutableArray<MigrationDescriptor> availableMigrations, long? currentVersion)
+    private static (bool IsDowngrade, ImmutableArray<MigrationDescriptor> MigrationsInOrder) GetRequiredMigrations(ImmutableArray<MigrationDescriptor> migrations, long? currentVersion, long? targetVersion)
     {
-        return MigrationGraph.CreateOrDefault(availableMigrations, currentVersion)?.GetMigrationTrace() ?? Enumerable.Empty<MigrationDescriptor>();
+        var (isDowngrade, graph) = (currentVersion, targetVersion) switch
+        {
+            (long c, long t) => c < t
+                ? (
+                    false,
+                    MigrationGraph.CreateOrDefault(migrations, currentVersion, targetVersion)
+                )
+                : (
+                    true,
+                    MigrationGraph.CreateOrDefault(migrations, targetVersion, currentVersion, true)
+                ),
+            _ => (
+                false,
+                MigrationGraph.CreateOrDefault(migrations, currentVersion, targetVersion)
+            ),
+        };
+        return (
+            isDowngrade,
+            (
+                isDowngrade
+                    ? graph?.GetMigrationTrace().Reverse().ToImmutableArray()
+                    : graph?.GetMigrationTrace().ToImmutableArray()
+            ) ?? ImmutableArray<MigrationDescriptor>.Empty
+        );
     }
 
 }
