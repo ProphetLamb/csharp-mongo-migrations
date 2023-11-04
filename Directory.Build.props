@@ -7,6 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <WarningsAsErrors>CS8600;CS8602;CS8603;CA2016</WarningsAsErrors>
+    <Sign>true</Sign>
   </PropertyGroup>
 
   <PropertyGroup Label="Package">
@@ -21,6 +22,10 @@
     <RepositoryUrl>https://github.com/ProphetLamb/csharp-mongo-migrations.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReleaseNotes>https://github.com/ProphetLamb/csharp-mongo-migrations/releases</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Signing" Condition="'$(Sign)' == 'true'">
+    <DefineConstants>$(DefineConstants);SIGN</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Label="Versioning">

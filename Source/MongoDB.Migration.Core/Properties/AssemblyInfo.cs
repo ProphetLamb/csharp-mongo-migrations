@@ -1,2 +1,6 @@
 [assembly: CLSCompliant(true)]
+#if SIGN
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("MongoDB.Migration.Test, PublicKey=0024000004800000940000000602000000240000525341310004000001000100817b1f4dc577c9a0c76cb24f484c3a46780f49280213422db1389f9666b80650b1386cf512ab776c2c9440a0906936fdddde21e606ded2443a04b3e55055fba3e12eea535d819853fa8c4d2c0d85d7a53a24f5a5a9b5a48b2d6ff9abf8149279932c7fa9410f8fb7187279af1dee894249ca9d4ef3fbfc22ed5533b787c48f80")]
+#else
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("MongoDB.Migration.Test")]
+#endif
