@@ -37,21 +37,21 @@ internal sealed class MigrationGraph
     /// <returns></returns>
     public static MigrationGraph? CreateOrDefault(IEnumerable<MigrationDescriptor> migrations, long? currentVersion, long? targetVersion = null, bool allowBacktracking = false)
     {
-        SortedList<long, MigrationDescriptor> orderedMigrations = [];
-        foreach (var migration in migrations)
-        {
-            if ((currentVersion is { } c && c > migration.DownVersion)
-                || (targetVersion is { } t && t < migration.UpVersion))
-            {
-                continue;
-            }
-            orderedMigrations.Add(migration.DownVersion, migration);
-        }
-        if (orderedMigrations.Count == 0)
+        var orderedMigrations = migrations
+            .Where(m
+                => !(
+                    (currentVersion is { } c && c > m.DownVersion)
+                    || (targetVersion is { } t && t < m.UpVersion)
+                )
+            )
+            .OrderBy(m => m.DownVersion)
+            .ToImmutableArray();
+        if (orderedMigrations.IsDefaultOrEmpty)
         {
             return null;
         }
-        return new(orderedMigrations.Values.ToImmutableArray(), migrations.First().DownVersion, migrations.Max(m => m.UpVersion), allowBacktracking);
+
+        return new(orderedMigrations, orderedMigrations.First().DownVersion, orderedMigrations.Max(m => m.UpVersion), allowBacktracking);
     }
 
     private ImmutableArray<Node> NodesByDown(long version)
