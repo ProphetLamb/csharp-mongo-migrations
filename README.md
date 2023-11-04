@@ -50,7 +50,7 @@ public sealed record MyDatabaseSettings : IOptions<MyDatabaseSettings>, IMongoMi
 
     MyDatabaseSettings IOptions<MyDatabaseSettings>.Value => this;
 
-    public MigrationDescriptor GetMigratableDefinition()
+    public MongoMigrableDefinition GetMigratableDefinition()
     {
         return new()
         {
@@ -76,7 +76,7 @@ sealed class MyRepository(IOptions<MyDatabaseSettings> databaseSettings, IMongoM
         .GetCollection<MyModel>(databaseSettings.MyCollectionName);
 
     public async Task<MyModel> GetOrSetAsync(MyModel insertModel, CancellationToken cancellationToken = default) {
-        _ = await migrationCompletion.WaitAsync(databaseSettings.Value, cancellationToken).ConfigureAwait(false);
+        var migrated = await migrationCompletion.WaitAsync(databaseSettings.Value, cancellationToken).ConfigureAwait(false);
         // ... do stuff
     }
 }
@@ -90,7 +90,7 @@ Add `IMongoMigration`s between version 0 and 1 and so on.
 
 ```csharp
 [MongoMigration("MyDatabase", 0, 1, Description = "Add composite index to MyCollection")]
-public sealed class PoeNinjaAddCompositeIndexMigration(IOptions<MyDatabaseSettings> optionsAccessor) : IMongoMigration
+public sealed class MyCollectionAddCompositeIndexMigration(IOptions<MyDatabaseSettings> optionsAccessor) : IMongoMigration
 {
     public async Task DownAsync(IMongoDatabase database, CancellationToken cancellationToken = default)
     {
@@ -113,7 +113,7 @@ A fixed database version ensures that the migration always produces a database o
 Fix a specific version by setting the `long? MigrateToFixedVersion` property in your `IMongoMigratable`; if the property is `null` - by default - a migration to the latest version will occur.
 
 ```csharp
-public MigrationDescriptor GetMigrationSettings()
+public MongoMigrableDefinition GetMigratableDefinition()
 {
     return new()
     {
@@ -129,10 +129,10 @@ public MigrationDescriptor GetMigrationSettings()
 
 MongoDB Migration extensively uses ASP.NET to prepare the environment required for processing of migrations. Without ASP.NET most features are unavailable, but the core - `DatabaseMirationProcessor` - public API; it is accessible to the user.
 
-1.  Describe your database in the `MigrationDescriptor` record.
-2.  Pack all available `IMongoMigration`s into the `DatabaseMigrationProcessor` record.
+1.  Describe your database in the `MongoMigrableDefinition` record.
+2.  Wrap instances of all available `IMongoMigration`s in the `MigrationDescriptor` record.
 3.  Instantiate `DatabaseMirationProcessor` for your database.
-4.  Call `DatabaseMirationProcessor.MigrateToVersionAsync` with the available `DatabaseMigrationProcessor`s.
+4.  Call `MigrateToVersionAsync` with the available `MigrationDescriptor`s.
 
 ## ToDO
 
@@ -143,4 +143,4 @@ MongoDB Migration extensively uses ASP.NET to prepare the environment required f
 
 ## Disclaimer
 
-`csharp-mongo-migration` is not affiliated with or endorsed by [MongoDB](https://www.mongodb.com). MONGODB & MONGO are registered trademarks of MongoDB, Inc.
+`csharp-mongo-migration` is not affiliated with or endorsed by [MongoDB](https://www.mongodb.com), Inc. MONGODB & MONGO are registered trademarks of MongoDB, Inc. 2023.
