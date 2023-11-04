@@ -16,7 +16,7 @@ namespace MongoDB.Migration;
 /// <param name="migrationCompletedPublisher">Collects the migration completions.</param>
 /// <param name="clock">The system clock.</param>
 /// <param name="loggerFactory">The logger factory.</param>
-internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databaseMigratables, IServiceProvider serviceProvider, IMigrationCompletionReciever migrationCompletedPublisher, ISystemClock? clock = null, ILoggerFactory? loggerFactory = null)
+internal sealed class DatabaseMigrationService(AvailableMigrationsTypes databaseMigratables, IServiceProvider serviceProvider, IMigrationCompletionReciever migrationCompletedPublisher, ISystemClock? clock = null, ILoggerFactory? loggerFactory = null)
     : IHostedService, IDisposable
 {
     private readonly ILogger<DatabaseMigrationService>? _logger = loggerFactory?.CreateLogger<DatabaseMigrationService>();
@@ -72,7 +72,7 @@ internal sealed class DatabaseMigrationService(DatabaseMigratableSettings databa
             .ConfigureAwait(false);
     }
 
-    private static IEnumerable<IMongoMigratable> GetDatabaseMigratables(DatabaseMigratableSettings databaseMigratables, IServiceProvider serviceProvider)
+    private static IEnumerable<IMongoMigratable> GetDatabaseMigratables(AvailableMigrationsTypes databaseMigratables, IServiceProvider serviceProvider)
     {
         return databaseMigratables.MigratableTypes
             .Select(serviceProvider.GetServices)

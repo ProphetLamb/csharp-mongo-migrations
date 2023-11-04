@@ -46,7 +46,7 @@ public static class MigrationExtensions
     /// <returns>The service colleciton.</returns>
     public static IServiceCollection AddMigrations(this IServiceCollection services, params Assembly[] assemblies)
     {
-        if (services.Any(desc => desc.ServiceType == typeof(DatabaseMigratableSettings)))
+        if (services.Any(desc => desc.ServiceType == typeof(AvailableMigrationsTypes)))
         {
             throw new InvalidOperationException("Duplicate AddMigrations call: Migrations are already registered.");
         }
@@ -65,7 +65,7 @@ public static class MigrationExtensions
             services.TryAddEnumerable(new ServiceDescriptor(typeof(IMongoMigration), migrationType, ServiceLifetime.Scoped));
         }
 
-        DatabaseMigratableSettings databaseMigratables = new(
+        AvailableMigrationsTypes databaseMigratables = new(
             services
                 .Select(d => d.ServiceType)
                 .Where(IsDatabaseMigratableOrOptionThereof)

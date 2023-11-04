@@ -19,7 +19,7 @@ public interface IMongoMigratable
 /// The list of service types implementing <see cref="IMongoMigratable"/>.
 /// </summary>
 /// <param name="types">The list of service types implementing <see cref="IMongoMigratable"/>.</param>
-internal sealed class DatabaseMigratableSettings(ImmutableArray<Type> types)
+internal sealed class AvailableMigrationsTypes(ImmutableArray<Type> types)
 {
     /// <summary>
     /// The list of service types implementing <see cref="IMongoMigratable"/>.
