@@ -134,12 +134,9 @@ MongoDB Migration extensively uses ASP.NET to prepare the environment required f
 3.  Instantiate `DatabaseMirationProcessor` for your database.
 4.  Call `MigrateToVersionAsync` with the available `MigrationDescriptor`s.
 
-## ToDO
+## Testing
 
--   [x] Allow upgrading the database to the latest version.
--   [x] Allow upgrading the database to a specific version.
--   [x] Allow downgrading the database to a specific version.
--   [ ] Add test cases.
+Tests require a local mongodb instance without authentication at port 27017: `mongodb://localhost:27017`.
 
 ## Disclaimer
 
