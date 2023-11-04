@@ -38,3 +38,17 @@ dotnet_diagnostic.CA1062.severity = none
 # Justification: Test method names contain underscores
 # https://docs.microsoft.com/en-us/visualstudio/code-quality/ca1707
 dotnet_diagnostic.CA1707.severity = none
+
+# VSTHRD111: Use .ConfigureAwait(bool)
+# Justification: Test methods should not call ConfigureAwait(false), as it may bypass parallelization limits. Omit ConfigureAwait, or use ConfigureAwait(true) to avoid CA2007
+# https://github.com/microsoft/vs-threading/blob/main/doc/analyzers/VSTHRD111.md
+dotnet_diagnostic.VSTHRD111.severity = none
+
+# VSTHRD200 Use Async suffix for async methods
+# Justification: Test methods have semantic naming conventions.
+# https://github.com/Microsoft/vs-threading/blob/main/doc/analyzers/VSTHRD200.md
+dotnet_diagnostic.VSTHRD200.severity = none
+
+# IDE0022: Use block body for method
+# Justification: Improved WithDb test method redability.
+dotnet_diagnostic.IDE0022.severity = none
