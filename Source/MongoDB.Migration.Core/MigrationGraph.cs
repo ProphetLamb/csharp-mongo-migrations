@@ -13,8 +13,9 @@ internal sealed class MigrationGraph
     private readonly long _startVersion;
     private readonly long _endVersion;
     private readonly ImmutableArray<MigrationDescriptor> _orderedMigrations;
+    private readonly bool _allowBacktracking;
 
-    public MigrationGraph(ImmutableArray<MigrationDescriptor> migrations, long startVersion, long endVersion)
+    public MigrationGraph(ImmutableArray<MigrationDescriptor> migrations, long startVersion, long endVersion, bool allowBacktracking)
     {
         _orderedMigrations = migrations;
         _migrationByDownVersion = migrations
@@ -23,6 +24,7 @@ internal sealed class MigrationGraph
             .ToImmutableMap(m => m.UpVersion, m => NodesByDown(m.DownVersion).First(other => ReferenceEquals(other.Migration, m)));
         _startVersion = startVersion;
         _endVersion = endVersion;
+        _allowBacktracking = allowBacktracking;
     }
 
     /// <summary>
@@ -31,8 +33,9 @@ internal sealed class MigrationGraph
     /// <param name="migrations">The sequence of migrations.</param>
     /// <param name="currentVersion">The minimum respected <see cref="MigrationDescriptor.DownVersion"/>.</param>
     /// <param name="targetVersion">The maximum respected <see cref="MigrationDescriptor.UpVersion"/>.</param>
+    /// <param name="allowBacktracking">Allows downgrades in the path.</param>
     /// <returns></returns>
-    public static MigrationGraph? CreateOrDefault(IEnumerable<MigrationDescriptor> migrations, long? currentVersion, long? targetVersion = null)
+    public static MigrationGraph? CreateOrDefault(IEnumerable<MigrationDescriptor> migrations, long? currentVersion, long? targetVersion = null, bool allowBacktracking = false)
     {
         SortedList<long, MigrationDescriptor> orderedMigrations = [];
         foreach (var migration in migrations)
@@ -48,7 +51,7 @@ internal sealed class MigrationGraph
         {
             return null;
         }
-        return new(orderedMigrations.Values.ToImmutableArray(), migrations.First().DownVersion, migrations.Max(m => m.UpVersion));
+        return new(orderedMigrations.Values.ToImmutableArray(), migrations.First().DownVersion, migrations.Max(m => m.UpVersion), allowBacktracking);
     }
 
     private ImmutableArray<Node> NodesByDown(long version)
@@ -88,7 +91,8 @@ internal sealed class MigrationGraph
         {
             root.IsVisited = true;
             var nextDistance = distance + 1;
-            foreach (var node in NodesByDown(root.Migration.UpVersion))
+            var neighbours = NodesByDown(root.Migration.UpVersion).Concat(_allowBacktracking ? NodesByUp(root.Migration.UpVersion) : ImmutableArray<Node>.Empty);
+            foreach (var node in neighbours)
             {
                 if (node.Distance <= nextDistance)
                 {
