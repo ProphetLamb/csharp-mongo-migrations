@@ -24,6 +24,8 @@ environment:
     secure: tc6c6aXuKL90rSOdadJdyR4rqupl5PJRdU3lafV1+AwGjErTK2vFqevWjmZCNSxniXoQs8iyT4POmlzNPHh5gt5Eefy37qCY0CjdDYO0GD4=
   KEY_SNK_SALT:
     secure: ZsifH8w9gRtgcVPdMDsROEdbpTdR4AzLgQZsKssisnT/SgPJ579AYWCL+zmCBdFdROzPTQ75+bpSv1Np6g7ztQ==
+  # Sign assemblies with the Key
+  Sign: true
 
 install:
   # Decrypt Key.snk
