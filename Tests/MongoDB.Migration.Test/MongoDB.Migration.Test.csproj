@@ -4,6 +4,10 @@
     <TargetFrameworks>net7.0</TargetFrameworks>
   </PropertyGroup>
 
+  <PropertyGroup Label="Assembly">
+    <AssemblyName>MongoDB.Migration.Test</AssemblyName>
+  </PropertyGroup>
+
   <ItemGroup Label="Project References">
     <ProjectReference Include="..\..\Source\MongoDB.Migration\MongoDB.Migration.csproj" />
   </ItemGroup>
