@@ -58,7 +58,10 @@ public class Class1Test
         Debug.Assert(res == 90);
 
         var col = db.GetCollection<DatabaseVersion>(settings.MirgrationStateCollectionName);
-        var currentMigration = await col.Find(m => m.Completed != null).SortByDescending(m => m.Completed).FirstAsync();
+        var currentMigration = await col
+            .Find(m => m.Completed != null)
+            .Sort(Builders<DatabaseVersion>.Sort.Descending("$natural"))
+            .FirstAsync();
         Debug.Assert(currentMigration.Version == 90);
     });
 

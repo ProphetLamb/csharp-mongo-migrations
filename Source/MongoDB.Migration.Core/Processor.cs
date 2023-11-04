@@ -19,42 +19,22 @@ public sealed class DatabaseMigrationProcessor(MongoMigrableDefinition settings,
             .CountDocumentsAsync(cancellationToken)
             .ConfigureAwait(false);
         var firstMigration = await ValidMigrations()
-            .SortBy(m => m.Completed)
-            .FirstAsync(cancellationToken)
+            .Sort(Builders<DatabaseVersion>.Sort.Ascending("$natural"))
+            .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
         var currentMigration = await ValidMigrations()
-            .SortByDescending(m => m.Completed)
-            .FirstAsync(cancellationToken)
+            .Sort(Builders<DatabaseVersion>.Sort.Descending("$natural"))
+            .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
-        var incompleteMigrationsVersions = await collection.Find(m => m.Database == databaseName && m.Completed == null).Project(m => m.Version).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var incompleteMigrationsVersions = await collection
+            .Find(m => m.Database == databaseName && m.Completed == null)
+            .Project(m => m.Version)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
         return (migrationsCount, firstMigration, currentMigration, incompleteMigrationsVersions.ToImmutableArray());
 
         IFindFluent<DatabaseVersion, DatabaseVersion> ValidMigrations() => collection
             .Find(m => m.Database == databaseName && m.Completed != null);
-    }
-
-    private static async Task EnsureCollectionPreparedAsync(IMongoCollection<DatabaseVersion> collection, CancellationToken cancellationToken)
-    {
-        var indicesCursor = await collection.Indexes.ListAsync(cancellationToken).ConfigureAwait(false);
-        var indices = await indicesCursor.ToListAsync(cancellationToken).ConfigureAwait(false);
-
-        var index = GetOrderByCompletionIndex();
-        if (!indices.Any(i => i["name"] == index.Options.Name))
-        {
-            _ = await collection.Indexes.CreateOneAsync(index, null, cancellationToken).ConfigureAwait(false);
-        }
-
-        static CreateIndexModel<DatabaseVersion> GetOrderByCompletionIndex()
-        {
-            IndexKeysDefinitionBuilder<DatabaseVersion> builder = new();
-            var indexKey = builder.Descending(m => m.Completed);
-            CreateIndexModel<DatabaseVersion> model = new(indexKey, new()
-            {
-                Name = "OrderByCompletionIndex",
-                Unique = true
-            });
-            return model;
-        }
     }
 
     /// <summary>
@@ -81,8 +61,6 @@ public sealed class DatabaseMigrationProcessor(MongoMigrableDefinition settings,
         MongoClient client = new(settings.ConnectionString);
         var database = client.GetDatabase(databaseName);
         var collection = database.GetCollection<DatabaseVersion>(settings.MirgrationStateCollectionName);
-
-        await EnsureCollectionPreparedAsync(collection, cancellationToken).ConfigureAwait(false);
 
         var (migrationsCount, firstMigration, currentMigration, incompleteMigrationsVersions) = await GetMigrationStateAsync(collection, databaseAlias, cancellationToken).ConfigureAwait(false);
 
@@ -199,6 +177,7 @@ public sealed class DatabaseMigrationProcessor(MongoMigrableDefinition settings,
                     migration.Description
                 );
 
+                await Task.Delay(1, cancellationToken).ConfigureAwait(false);
                 var startedTimestamp = clock?.UtcNow ?? DateTimeOffset.UtcNow;
                 DatabaseVersion startedVersion = new()
                 {
