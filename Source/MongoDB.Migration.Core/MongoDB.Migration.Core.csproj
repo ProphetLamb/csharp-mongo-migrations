@@ -13,7 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="MongoDB.Migration.Test" />
+    <InternalsVisibleTo Include="MongoDB.Migration.Test" PublicKey="c65dc8d913705ff8" />
   </ItemGroup>
 
   <ItemGroup>
