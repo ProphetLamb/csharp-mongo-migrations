@@ -7,7 +7,7 @@ using Xunit;
 
 namespace MongoDB.Migration.Test;
 
-public class Class1Test
+public class DatabaseMigrationProcessorTests
 {
     private static List<LoggingMigration> CreateDefaultMigrations(List<(int From, int To)> versionLog)
     {

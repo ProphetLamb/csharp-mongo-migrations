@@ -33,7 +33,7 @@ public interface IMigrationCompletionReciever
     /// Handles the completion of the migration of a database.
     /// </summary>
     /// <param name="message">The migration</param>
-    internal void Handle(MigrationCompleted message);
+    internal void MigrationCompleted(MigrationCompleted message);
 
     /// <summary>
     /// Clears all completions and sets the list of known databases.
@@ -64,7 +64,7 @@ internal sealed class MigrationCompletionService : IMongoMigrationCompletion, IM
     {
         lock (_completedMigrations)
         {
-            if (_databaseMigratablesAliases is null || _databaseMigratablesAliases.Contains(databaseAlias))
+            if (_databaseMigratablesAliases is null || !_databaseMigratablesAliases.Contains(databaseAlias))
             {
                 return default;
             }
@@ -86,12 +86,12 @@ internal sealed class MigrationCompletionService : IMongoMigrationCompletion, IM
         }
     }
 
-    void IMigrationCompletionReciever.Handle(MigrationCompleted message)
+    public void MigrationCompleted(MigrationCompleted message)
     {
         AddToCompletion(message);
     }
 
-    void IMigrationCompletionReciever.WithKnownDatabaseAliases(ImmutableHashSet<string> databaseMigratablesAliases)
+    public void WithKnownDatabaseAliases(ImmutableHashSet<string> databaseMigratablesAliases)
     {
         lock (_completedMigrations)
         {

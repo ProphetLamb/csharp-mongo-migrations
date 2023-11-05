@@ -25,38 +25,43 @@ internal sealed class DatabaseMigrationService(AvailableMigrationsTypes database
 
     public async Task MigrateToVersionAsync(MongoMigrableDefinition settings, CancellationToken stoppingToken)
     {
-        var databaseAlias = settings.Database.Alias;
-
-        _logger?.LogInformation(
-            "Begining migration of {Database}",
-            settings.Database.Alias
-        );
-
-        long migratedVersion;
-        await using (var scope = serviceProvider.CreateAsyncScope())
+        long migratedVersion = 0;
+        try
         {
+            var databaseAlias = settings.Database.Alias;
 
-            var migrations = scope.ServiceProvider.GetServices<IMongoMigration>()
-                .SelectTruthy(ToMigrationOrDefault)
-                .Where(migration => migration.Database == databaseAlias)
-                .ToImmutableArray();
+            _logger?.LogInformation(
+                "Begining migration of {Database}",
+                settings.Database.Alias
+            );
 
-            DatabaseMigrationProcessor processor = new(settings, clock, loggerFactory?.CreateLogger<DatabaseMigrationProcessor>());
-            migratedVersion = await processor.MigrateToVersionAsync(migrations, stoppingToken).ConfigureAwait(false);
+            await using (var scope = serviceProvider.CreateAsyncScope())
+            {
+
+                var migrations = scope.ServiceProvider.GetServices<IMongoMigration>()
+                    .SelectTruthy(ToMigrationOrDefault)
+                    .Where(migration => migration.Database == databaseAlias)
+                    .ToImmutableArray();
+
+                DatabaseMigrationProcessor processor = new(settings, clock, loggerFactory?.CreateLogger<DatabaseMigrationProcessor>());
+                migratedVersion = await processor.MigrateToVersionAsync(migrations, stoppingToken).ConfigureAwait(false);
+            }
+
+            _logger?.LogInformation(
+                "Completed migration {Database}",
+                settings.Database.Alias
+            );
         }
-
-        _logger?.LogInformation(
-            "Completed migration {Database}",
-            settings.Database.Alias
-        );
-
-        migrationCompletedPublisher.Handle(
-            new(
-                settings.Database.Name,
-                settings.Database.Alias,
-                migratedVersion
-            )
-        );
+        finally
+        {
+            migrationCompletedPublisher.MigrationCompleted(
+                new(
+                    settings.Database.Name,
+                    settings.Database.Alias,
+                    migratedVersion
+                )
+            );
+        }
     }
 
     private async Task ExecuteAsync(CancellationToken stoppingToken)
