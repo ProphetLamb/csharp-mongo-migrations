@@ -78,11 +78,7 @@ internal sealed class MigrationCompletionService : IMongoMigrationCompletion, IM
                 _migrationCompletions[databaseAlias] = completion;
             }
 
-            if (cancellationToken.CanBeCanceled)
-            {
-                return new(completion.Task.WaitAsync(cancellationToken));
-            }
-            return new(completion.Task);
+            return new(completion.Task.WaitAsync(cancellationToken));
         }
     }
 

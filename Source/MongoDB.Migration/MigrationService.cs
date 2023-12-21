@@ -11,17 +11,41 @@ namespace MongoDB.Migration;
 /// <summary>
 /// Background service executing migrations.
 /// </summary>
-/// <param name="databaseMigratables">The list of migrations.</param>
-/// <param name="serviceProvider">The service provider.</param>
-/// <param name="migrationCompletedPublisher">Collects the migration completions.</param>
-/// <param name="clock">The system clock.</param>
-/// <param name="loggerFactory">The logger factory.</param>
-internal sealed class DatabaseMigrationService(AvailableMigrationsTypes databaseMigratables, IServiceProvider serviceProvider, IMigrationCompletionReciever migrationCompletedPublisher, ISystemClock? clock = null, ILoggerFactory? loggerFactory = null)
+internal sealed class DatabaseMigrationService
     : IHostedService, IDisposable
 {
-    private readonly ILogger<DatabaseMigrationService>? _logger = loggerFactory?.CreateLogger<DatabaseMigrationService>();
+    private readonly ILogger<DatabaseMigrationService>? _logger;
+    private readonly ImmutableArray<MongoMigrableDefinition> _migrationSettings;
+    private readonly AvailableMigrationsTypes _databaseMigratables;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly IMigrationCompletionReciever _migrationCompletedPublisher;
+    private readonly ISystemClock? _clock;
+    private readonly ILoggerFactory? _loggerFactory;
     private Task? _executeTask;
     private CancellationTokenSource? _executeCts;
+
+    /// <summary>
+    /// Background service executing migrations.
+    /// </summary>
+    /// <param name="databaseMigratables">The list of migrations.</param>
+    /// <param name="serviceProvider">The service provider.</param>
+    /// <param name="migrationCompletedPublisher">Collects the migration completions.</param>
+    /// <param name="clock">The system clock.</param>
+    /// <param name="loggerFactory">The logger factory.</param>
+    public DatabaseMigrationService(AvailableMigrationsTypes databaseMigratables, IServiceProvider serviceProvider, IMigrationCompletionReciever migrationCompletedPublisher, ISystemClock? clock = null, ILoggerFactory? loggerFactory = null)
+    {
+        _databaseMigratables = databaseMigratables;
+        _serviceProvider = serviceProvider;
+        _migrationCompletedPublisher = migrationCompletedPublisher;
+        _clock = clock;
+        _loggerFactory = loggerFactory;
+        _logger = loggerFactory?.CreateLogger<DatabaseMigrationService>();
+        _migrationSettings = GetDatabaseMigratables(_databaseMigratables, _serviceProvider)
+            .Select(m => m.GetMigratableDefinition())
+            .DistinctBy(s => s.Database.Alias)
+            .ToImmutableArray();
+        _migrationCompletedPublisher.WithKnownDatabaseAliases(_migrationSettings.Select(m => m.Database.Alias).ToImmutableHashSet());
+    }
 
     public async Task MigrateToVersionAsync(MongoMigrableDefinition settings, CancellationToken stoppingToken)
     {
@@ -35,7 +59,7 @@ internal sealed class DatabaseMigrationService(AvailableMigrationsTypes database
                 settings.Database.Alias
             );
 
-            await using (var scope = serviceProvider.CreateAsyncScope())
+            await using (var scope = _serviceProvider.CreateAsyncScope())
             {
 
                 var migrations = scope.ServiceProvider.GetServices<IMongoMigration>()
@@ -43,7 +67,7 @@ internal sealed class DatabaseMigrationService(AvailableMigrationsTypes database
                     .Where(migration => migration.Database == databaseAlias)
                     .ToImmutableArray();
 
-                DatabaseMigrationProcessor processor = new(settings, clock, loggerFactory?.CreateLogger<DatabaseMigrationProcessor>());
+                DatabaseMigrationProcessor processor = new(settings, _clock, _loggerFactory?.CreateLogger<DatabaseMigrationProcessor>());
                 migratedVersion = await processor.MigrateToVersionAsync(migrations, stoppingToken).ConfigureAwait(false);
             }
 
@@ -54,7 +78,7 @@ internal sealed class DatabaseMigrationService(AvailableMigrationsTypes database
         }
         finally
         {
-            migrationCompletedPublisher.MigrationCompleted(
+            _migrationCompletedPublisher.MigrationCompleted(
                 new(
                     settings.Database.Name,
                     settings.Database.Alias,
@@ -66,13 +90,8 @@ internal sealed class DatabaseMigrationService(AvailableMigrationsTypes database
 
     private async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var migrationSettings = GetDatabaseMigratables(databaseMigratables, serviceProvider)
-            .Select(m => m.GetMigratableDefinition())
-            .DistinctBy(s => s.Database.Alias)
-            .ToImmutableArray();
-        migrationCompletedPublisher.WithKnownDatabaseAliases(migrationSettings.Select(m => m.Database.Alias).ToImmutableHashSet());
         await Task.WhenAll(
-            migrationSettings.Select(s => MigrateToVersionAsync(s, stoppingToken))
+            _migrationSettings.Select(s => MigrateToVersionAsync(s, stoppingToken))
         )
             .ConfigureAwait(false);
     }
@@ -91,17 +110,18 @@ internal sealed class DatabaseMigrationService(AvailableMigrationsTypes database
                 return m;
             }
             var implType = service?.GetType();
-            if (implType is null
-                || !implType.IsGenericType
-                || implType.GetGenericTypeDefinition() != typeof(IOptions<>))
+            if (implType is not null
+                && implType.IsGenericType
+                && implType.GetInterfaces().Any(t => t.GetGenericTypeDefinition() == typeof(IOptions<>)))
             {
-                return null;
+                var optionsAccessor = implType
+                    .GetProperty(nameof(IOptions<object>.Value), BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy)
+                    ?? throw new InvalidOperationException("The type is no U: IOptions<T> where T: IDatabaseMigratable || U: IDatabaseMigratable, or failed to produce a value.");
+                var result = (IMongoMigratable)(optionsAccessor.GetValue(service) ?? throw new InvalidOperationException("The type is no U: IOptions<T> where T: IDatabaseMigratable || U: IDatabaseMigratable, or failed to produce a value."));
+                return result;
             }
-            var optionsAccessor = implType
-                .GetProperty(nameof(IOptions<object>.Value), BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy)
-                ?? throw new InvalidOperationException("The type is no U: IOptions<T> where T: IDatabaseMigratable || U: IDatabaseMigratable, or failed to produce a value.");
-            var result = (IMongoMigratable)(optionsAccessor.GetValue(service) ?? throw new InvalidOperationException("The type is no U: IOptions<T> where T: IDatabaseMigratable || U: IDatabaseMigratable, or failed to produce a value."));
-            return result;
+
+            return null;
         }
     }
 
