@@ -112,7 +112,7 @@ internal sealed class DatabaseMigrationService
             var implType = service?.GetType();
             if (implType is not null
                 && implType.IsGenericType
-                && implType.GetGenericTypeDefinition() == typeof(IOptions<>))
+                && implType.GetInterfaces().Any(t => t.GetGenericTypeDefinition() == typeof(IOptions<>)))
             {
                 var optionsAccessor = implType
                     .GetProperty(nameof(IOptions<object>.Value), BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy)
