@@ -187,7 +187,7 @@ public sealed class DatabaseMigrationProcessor(MongoMigrableDefinition settings,
                     Started = startedTimestamp
                 };
                 await collection.InsertOneAsync(startedVersion, null, cancellationToken).ConfigureAwait(false);
-                await migration.MigrationService.UpAsync(database, cancellationToken).ConfigureAwait(false);
+                await migration.MigrationService.DownAsync(database, cancellationToken).ConfigureAwait(false);
 
                 var completedTimestamp = clock?.UtcNow ?? DateTimeOffset.UtcNow;
                 _ = await collection.UpdateOneAsync(
