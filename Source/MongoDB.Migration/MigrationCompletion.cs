@@ -1,6 +1,4 @@
 using System.Collections.Immutable;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
 
 namespace MongoDB.Migration;
 
@@ -74,14 +72,13 @@ internal sealed class MigrationCompletionService : IMongoMigrationCompletion, IM
             {
                 return new(migration);
             }
-            ref var completion = ref CollectionsMarshal.GetValueRefOrAddDefault(_migrationCompletions, databaseAlias, out var exists);
-            if (!exists)
+            if (!_migrationCompletions.TryGetValue(databaseAlias, out var completion))
             {
                 completion = new();
+                _migrationCompletions[databaseAlias] = completion;
             }
-            Debug.Assert(completion is not null);
 
-            return new(completion!.Task.WaitAsync(cancellationToken));
+            return new(completion.Task.WaitAsync(cancellationToken));
         }
     }
 
