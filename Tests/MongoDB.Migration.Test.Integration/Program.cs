@@ -9,8 +9,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
     .Configure<DatabaseSettings>(o => { })
-    .AddMigrations()
-    .AddHostedService<TestService>();
+    .AddHostedService<TestService>()
+    .AddMigrations();
 
 var app = builder.Build();
 app.Run();
@@ -22,7 +22,7 @@ namespace MongoDB.Migration.Text.Integration
         public const string Alias = "TestDatabase";
 
         public string DataModelCollectionName { get; init; } = "DataModel";
-        public string ConnectionString { get; init; } = "mongodb://localhost:27017";
+        public string ConnectionString { get; init; } = "mongodb://mongo:mongo@localhost:27017";
         public string DatabaseName { get; init; } = $"TestDatabase{Environment.CurrentManagedThreadId}";
 
         public MongoMigrableDefinition GetMigratableDefinition()
