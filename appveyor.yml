@@ -5,7 +5,7 @@ version: "{build}"
 image:
   - Visual Studio 2022
   - Ubuntu
-  - macOS
+  # - macOS
 
 services:
   - mongodb
