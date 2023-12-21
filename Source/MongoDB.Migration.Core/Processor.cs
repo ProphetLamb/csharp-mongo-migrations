@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using MongoDB.Driver;
 using Microsoft.Extensions.Logging;
+using System.Runtime.Serialization;
 
 namespace MongoDB.Migration.Core;
 
@@ -136,8 +137,14 @@ public sealed class DatabaseMigrationProcessor(MongoMigrableDefinition settings,
                     Started = startedTimestamp
                 };
                 await collection.InsertOneAsync(startedVersion, null, stoppingToken).ConfigureAwait(false);
-
-                await migration.MigrationService.UpAsync(database, stoppingToken).ConfigureAwait(false);
+                try
+                {
+                    await migration.MigrationService.UpAsync(database, stoppingToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    throw new MigrationFailedException($"Failed to migrate {migration.Database} from {migration.DownVersion} to {migration.UpVersion}: {migration.Description}", ex);
+                }
 
                 var completedTimestamp = clock?.UtcNow ?? DateTimeOffset.UtcNow;
                 _ = await collection.UpdateOneAsync(
@@ -187,7 +194,14 @@ public sealed class DatabaseMigrationProcessor(MongoMigrableDefinition settings,
                     Started = startedTimestamp
                 };
                 await collection.InsertOneAsync(startedVersion, null, cancellationToken).ConfigureAwait(false);
-                await migration.MigrationService.DownAsync(database, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await migration.MigrationService.DownAsync(database, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    throw new MigrationFailedException($"Failed to migrate {migration.Database} from {migration.UpVersion} to {migration.DownVersion}: {migration.Description}", ex);
+                }
 
                 var completedTimestamp = clock?.UtcNow ?? DateTimeOffset.UtcNow;
                 _ = await collection.UpdateOneAsync(
@@ -236,5 +250,23 @@ public sealed class DatabaseMigrationProcessor(MongoMigrableDefinition settings,
             ) ?? ImmutableArray<MigrationDescriptor>.Empty
         );
     }
+}
 
+public class MigrationFailedException : Exception
+{
+    public MigrationFailedException()
+    {
+    }
+
+    public MigrationFailedException(string? message) : base(message)
+    {
+    }
+
+    public MigrationFailedException(string? message, Exception? innerException) : base(message, innerException)
+    {
+    }
+
+    protected MigrationFailedException(SerializationInfo info, StreamingContext context) : base(info, context)
+    {
+    }
 }
