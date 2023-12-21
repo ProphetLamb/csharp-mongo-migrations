@@ -72,7 +72,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MongoDB.Migration.Core", "Source\MongoDB.Migration.Core\MongoDB.Migration.Core.csproj", "{EC1BBB25-BE7C-43B6-97E5-AF246DF4C197}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MongoDB.Migration.Text.Integration", "Tests\MongoDB.Migration.Text.Integration\MongoDB.Migration.Text.Integration.csproj", "{FA62DE24-A252-4033-B755-A8C6A2419BE5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MongoDB.Migration.Test.Integration", "Tests\MongoDB.Migration.Test.Integration\MongoDB.Migration.Test.Integration.csproj", "{FA62DE24-A252-4033-B755-A8C6A2419BE5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
