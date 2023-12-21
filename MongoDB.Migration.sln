@@ -72,6 +72,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MongoDB.Migration.Core", "Source\MongoDB.Migration.Core\MongoDB.Migration.Core.csproj", "{EC1BBB25-BE7C-43B6-97E5-AF246DF4C197}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MongoDB.Migration.Text.Integration", "Tests\MongoDB.Migration.Text.Integration\MongoDB.Migration.Text.Integration.csproj", "{FA62DE24-A252-4033-B755-A8C6A2419BE5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -90,6 +92,10 @@ Global
 		{EC1BBB25-BE7C-43B6-97E5-AF246DF4C197}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EC1BBB25-BE7C-43B6-97E5-AF246DF4C197}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EC1BBB25-BE7C-43B6-97E5-AF246DF4C197}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FA62DE24-A252-4033-B755-A8C6A2419BE5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA62DE24-A252-4033-B755-A8C6A2419BE5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FA62DE24-A252-4033-B755-A8C6A2419BE5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA62DE24-A252-4033-B755-A8C6A2419BE5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -102,6 +108,7 @@ Global
 		{EFE1E5ED-D337-4874-82EC-D9FA0BC7D3AB} = {F20E2797-D1E3-4321-91BB-FAE54954D2A0}
 		{841C67EF-BBB2-4730-8E29-22FF3FD54306} = {EFE1E5ED-D337-4874-82EC-D9FA0BC7D3AB}
 		{EC1BBB25-BE7C-43B6-97E5-AF246DF4C197} = {719809C2-A551-4C4A-9EFD-B10FB5E35BC0}
+		{FA62DE24-A252-4033-B755-A8C6A2419BE5} = {E1B24F25-B8A4-46EE-B7EB-7803DCFC543F}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {73F36209-F8D6-4066-8951-D97729F773CF}
