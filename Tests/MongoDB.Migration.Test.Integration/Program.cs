@@ -57,7 +57,7 @@ namespace MongoDB.Migration.Text.Integration
         {
             var col = GetGemPriceCollection(database);
             IndexKeysDefinitionBuilder<DataModel> builder = new();
-            var index = builder.Hashed(m => m.DistinctText);
+            var index = builder.Text(m => m.DistinctText);
             CreateIndexModel<DataModel> model = new(index, new()
             {
                 Unique = true,
