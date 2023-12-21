@@ -110,17 +110,18 @@ internal sealed class DatabaseMigrationService
                 return m;
             }
             var implType = service?.GetType();
-            if (implType is null
-                || !implType.IsGenericType
-                || implType.GetGenericTypeDefinition() != typeof(IOptions<>))
+            if (implType is not null
+                && implType.IsGenericType
+                && implType.GetGenericTypeDefinition() == typeof(IOptions<>))
             {
-                return null;
+                var optionsAccessor = implType
+                    .GetProperty(nameof(IOptions<object>.Value), BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy)
+                    ?? throw new InvalidOperationException("The type is no U: IOptions<T> where T: IDatabaseMigratable || U: IDatabaseMigratable, or failed to produce a value.");
+                var result = (IMongoMigratable)(optionsAccessor.GetValue(service) ?? throw new InvalidOperationException("The type is no U: IOptions<T> where T: IDatabaseMigratable || U: IDatabaseMigratable, or failed to produce a value."));
+                return result;
             }
-            var optionsAccessor = implType
-                .GetProperty(nameof(IOptions<object>.Value), BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy)
-                ?? throw new InvalidOperationException("The type is no U: IOptions<T> where T: IDatabaseMigratable || U: IDatabaseMigratable, or failed to produce a value.");
-            var result = (IMongoMigratable)(optionsAccessor.GetValue(service) ?? throw new InvalidOperationException("The type is no U: IOptions<T> where T: IDatabaseMigratable || U: IDatabaseMigratable, or failed to produce a value."));
-            return result;
+
+            return null;
         }
     }
 
