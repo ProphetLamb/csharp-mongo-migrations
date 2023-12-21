@@ -131,7 +131,7 @@ public sealed class DatabaseMigrationProcessor(MongoMigrableDefinition settings,
                 var startedTimestamp = clock?.UtcNow ?? DateTimeOffset.UtcNow;
                 DatabaseVersion startedVersion = new()
                 {
-                    Database = databaseName,
+                    Database = databaseAlias,
                     Version = migration.UpVersion,
                     Direction = VersionDirection.Up,
                     Started = startedTimestamp
@@ -188,7 +188,7 @@ public sealed class DatabaseMigrationProcessor(MongoMigrableDefinition settings,
                 var startedTimestamp = clock?.UtcNow ?? DateTimeOffset.UtcNow;
                 DatabaseVersion startedVersion = new()
                 {
-                    Database = databaseName,
+                    Database = databaseAlias,
                     Version = migration.DownVersion,
                     Direction = VersionDirection.Down,
                     Started = startedTimestamp
