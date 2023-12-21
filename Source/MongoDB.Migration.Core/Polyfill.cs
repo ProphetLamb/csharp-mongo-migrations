@@ -77,14 +77,21 @@ namespace System.Threading.Tasks
         /// <returns>The <see cref="Task"/> representing the asynchronous wait.  It may or may not be the same instance as the current instance.</returns>
         public static Task WaitAsync(this Task innerTask, CancellationToken cancellationToken)
         {
-            return Task.Run(() => innerTask, cancellationToken);
+            if (cancellationToken.CanBeCanceled)
+            {
+                return Task.Run(() => innerTask, cancellationToken);
+            }
+            return innerTask;
         }
         /// <summary>Gets a <see cref="Task"/> that will complete when this <see cref="Task"/> completes or when the specified <see cref="CancellationToken"/> has cancellation requested.</summary>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for a cancellation request.</param>
         /// <returns>The <see cref="Task"/> representing the asynchronous wait.  It may or may not be the same instance as the current instance.</returns>
         public static Task<T> WaitAsync<T>(this Task<T> innerTask, CancellationToken cancellationToken)
         {
-            return Task.Run(() => innerTask, cancellationToken);
+            if (cancellationToken.CanBeCanceled) {
+                return Task.Run(() => innerTask, cancellationToken);
+            }
+            return innerTask;
         }
     }
 }
