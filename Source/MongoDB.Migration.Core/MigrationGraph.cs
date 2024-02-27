@@ -124,7 +124,7 @@ internal sealed class MigrationGraph
         IEnumerable<Exception> ValidateTrace()
         {
             // validate that the start and end nodes are connected
-            if (!NodesByUp(_endVersion).Any(node => node.Previous is not null))
+            if (!NodesByUp(_endVersion).Any(node => node.Previous is not null || node.Migration.DownVersion == _startVersion))
             {
                 yield return new InvalidOperationException($"Invalid migration set: No path to the target version ({_endVersion}) exists with the available mirgrations.");
             }

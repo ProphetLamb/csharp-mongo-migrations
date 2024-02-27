@@ -68,7 +68,7 @@ public static class MigrationExtensions
         AvailableMigrationsTypes databaseMigratables = new(
             services
                 .Select(d => d.ServiceType)
-                .Where(IsDatabaseMigratableOrOptionThereof)
+                .SelectTruthy(IsDatabaseMigratableOrOptionThereof)
                 .Distinct()
                 .ToImmutableArray()
         );
@@ -83,25 +83,35 @@ public static class MigrationExtensions
             )
             .AddHostedService<DatabaseMigrationService>();
 
-        static bool IsDatabaseMigratableOrOptionThereof(Type type)
+        static Type? IsDatabaseMigratableOrOptionThereof(Type type)
         {
             if (!type.IsGenericType)
             {
-                return false;
+                return null;
             }
 
             if (typeof(IMongoMigratable).IsAssignableFrom(type))
             {
-                return true;
+                return type;
             }
 
-            if (type.GetGenericTypeDefinition() != typeof(IOptions<>))
+            if (type.GetGenericTypeDefinition() == typeof(IOptions<>))
             {
-                return false;
+                var optionsType = type.GetGenericArguments()[0];
+                return typeof(IMongoMigratable).IsAssignableFrom(optionsType)
+                    ? type
+                    : null;
             }
 
-            var optionsType = type.GetGenericArguments()[0];
-            return typeof(IMongoMigratable).IsAssignableFrom(optionsType);
+            if (type.GetGenericTypeDefinition() == typeof(IConfigureOptions<>))
+            {
+                var optionsType = type.GetGenericArguments()[0];
+                return typeof(IMongoMigratable).IsAssignableFrom(optionsType)
+                    ? typeof(IOptions<>).MakeGenericType(optionsType)
+                    : null;
+            }
+
+            return null;
         }
     }
 
