@@ -60,13 +60,13 @@ deploy:
       APPVEYOR_REPO_TAG: true
     artifact: /.*(\.|\.s)nupkg/
     api_key:
-      secure: C58JLUC+fPc93ksI9nJw5TI2mtEdv+wy0uAmQ8nMD8VamkD+2bunbZWAI3t6FMTu
+      secure: m+nCIf6nf0G1mfwQP1HRMSFQ1F2B9xQpN1Qgdfoyj1KYOgL9MlKt9ElhCMs6ES9/
   - provider: "GitHub"
     on:
       APPVEYOR_REPO_TAG: true
     description: "Updated the MongoDB.Migration library"
     auth_token:
-      secure: SdasydzHH9f2Gpv1yPBDwgQA9+I61uDfM/JUmFRHjNRx8NgDcyxxi5GSYCaSrRFMg90ghR5OZER/KhuFRpm6MFIR+euELGCq2LoRHXap5JVK5rJ7Z2hlT7VdeqvpJ+tq
+      secure: SdasydzHH9f2Gpv1yPBDwnVrKPUcfOXkyZNFClq2/Pnc+t3IO1Q32l3OKBtfCR0QaN4KUfG4Rp4PwQwHkQQScCi5rfoCM/XXHWaJXre+p4IPoQZveifUXzp+Et71Zc/0
     artifact: /.*(\.|\.s)nupkg/
     draft: false
     prerelease: false
